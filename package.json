@@ -1,0 +1,167 @@
+{
+  "name": "multi-agent-session-manager",
+  "displayName": "Multi-Agent Session Manager",
+  "description": "Track and manage sessions from multiple AI agents (Claude, Cursor, Gemini, Devin, etc.) directly in VS Code / Theo dõi và quản lý phiên làm việc từ nhiều AI agent (Claude, Cursor, Gemini, Devin, ...) trực tiếp trên VS Code",
+  "version": "1.0.0",
+  "publisher": "mhquan",
+  "author": "mhquan",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mquand/Multi-Agent-Session-Manager.git"
+  },
+  "icon": "resources/icon.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Other",
+    "SCM Providers"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "multi-agent-session-manager-sidebar",
+          "title": "AI Sessions",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "multi-agent-session-manager-sidebar": [
+        {
+          "type": "webview",
+          "id": "multiAgentSessionManager.issuesView",
+          "name": "AI Sessions"
+        }
+      ],
+      "explorer": [
+        {
+          "type": "webview",
+          "id": "multiAgentSessionManager.sessionExplorer",
+          "name": "AI Sessions",
+          "when": "config.multiAgentSessionManager.showInExplorer"
+        }
+      ],
+      "scm": [
+        {
+          "type": "webview",
+          "id": "multiAgentSessionManager.sessionScm",
+          "name": "AI Sessions",
+          "when": "config.multiAgentSessionManager.showInSourceControl"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "multiAgentSessionManager.refresh",
+        "title": "Refresh AI Sessions / Làm mới danh sách Sessions",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "multiAgentSessionManager.openSettings",
+        "title": "Configure Storage Path & Settings / Cấu hình đường dẫn lưu trữ"
+      },
+      {
+        "command": "multiAgentSessionManager.browseStoragePath",
+        "title": "Select Agent Storage Folder (Browse...) / Chọn thư mục lưu trữ Agent Sessions",
+        "icon": "$(folder-opened)"
+      },
+      {
+        "command": "multiAgentSessionManager.browseWorkspaceRoot",
+        "title": "Select Workspace Root Folder (Browse...) / Chọn thư mục gốc Workspace",
+        "icon": "$(root-folder)"
+      },
+      {
+        "command": "multiAgentSessionManager.checkForUpdates",
+        "title": "Check for Updates (GitHub Releases) / Kiểm tra bản cập nhật mới",
+        "icon": "$(cloud-download)"
+      },
+      {
+        "command": "multiAgentSessionManager.toggleExplorerView",
+        "title": "Toggle AI Sessions in Explorer / Bật-Tắt hiển thị trong thanh Explorer"
+      },
+      {
+        "command": "multiAgentSessionManager.toggleSourceControlView",
+        "title": "Toggle AI Sessions in Source Control / Bật-Tắt hiển thị trong Source Control"
+      },
+      {
+        "command": "multiAgentSessionManager.statusMenu",
+        "title": "AI Sessions Status Menu / Menu trạng thái AI Sessions"
+      },
+      {
+        "command": "multiAgentSessionManager.openTab",
+        "title": "Open AI Sessions Tab / Mở tab lọc AI Sessions"
+      }
+    ],
+    "configuration": {
+      "title": "Multi-Agent Session Manager",
+      "properties": {
+        "multiAgentSessionManager.storagePath": {
+          "type": "string",
+          "default": "~/.claude/projects",
+          "description": "Path to AI agent conversation transcripts and sessions storage directory. Use command 'Select Agent Storage Folder' to browse. / Đường dẫn chứa lịch sử session của AI agent."
+        },
+        "multiAgentSessionManager.autoRefreshInterval": {
+          "type": "number",
+          "default": 10,
+          "description": "Auto-refresh scan interval in seconds (default: 10s) / Thời gian tự động quét lại (giây)"
+        },
+        "multiAgentSessionManager.language": {
+          "type": "string",
+          "enum": [
+            "auto",
+            "vi",
+            "en"
+          ],
+          "default": "auto",
+          "description": "Interface display language: auto / vi / en / Ngôn ngữ hiển thị giao diện"
+        },
+        "multiAgentSessionManager.showInExplorer": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show AI Sessions in the Explorer view (File Tree) / Hiển thị AI Sessions trong thanh Explorer (File Tree)"
+        },
+        "multiAgentSessionManager.showInSourceControl": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show AI Sessions in the Source Control view (Git) / Hiển thị AI Sessions trong thanh Source Control (Git)"
+        },
+        "multiAgentSessionManager.workspaceRoot": {
+          "type": "string",
+          "default": "",
+          "description": "Root folder path containing your projects or repositories. Leave empty to auto-detect. / Đường dẫn thư mục chứa các dự án/repository. Để trống để tự động nhận diện."
+        },
+        "multiAgentSessionManager.defaultRepo": {
+          "type": "string",
+          "default": "",
+          "description": "Default repository name when a session cannot determine its project / Tên repository mặc định khi không xác định được dự án cụ thể."
+        },
+        "multiAgentSessionManager.enabledAgents": {
+          "type": "array",
+          "default": ["claude"],
+          "items": {
+            "type": "string",
+            "enum": ["claude", "cursor", "gemini", "devin", "windsurf"]
+          },
+          "description": "List of enabled AI agents to track / Danh sách AI agent được theo dõi"
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "typescript": "^5.3.3"
+  }
+}
