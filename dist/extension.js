@@ -6,15 +6,25 @@ const vscode = require("vscode");
 const fs = require("fs");
 const issuesViewProvider_1 = require("./issuesViewProvider");
 const updater_1 = require("./updater");
-const scanner_1 = require("./scanner");
+const agent_registry_1 = require("./agent-registry");
+const claude_adapter_1 = require("./adapters/claude/claude-adapter");
+const gemini_adapter_1 = require("./adapters/gemini/gemini-adapter");
+const cursor_adapter_1 = require("./adapters/cursor/cursor-adapter");
+const claude_scanner_1 = require("./adapters/claude/claude-scanner");
 function activate(context) {
+    // Đăng ký các adapter vào AgentRegistry
+    agent_registry_1.AgentRegistry.registerAdapter(new claude_adapter_1.ClaudeAdapter());
+    agent_registry_1.AgentRegistry.registerAdapter(new gemini_adapter_1.GeminiAdapter());
+    agent_registry_1.AgentRegistry.registerAdapter(new cursor_adapter_1.CursorAdapter());
     const provider = new issuesViewProvider_1.IssuesViewProvider(context.extensionUri, context);
     // Đăng ký cho tất cả các view container: Activity Bar, Explorer, Source Control (và legacy IDs để phòng ngừa cache cũ)
     const viewTypes = [
         issuesViewProvider_1.IssuesViewProvider.viewType,
         issuesViewProvider_1.IssuesViewProvider.explorerViewType,
+        'multiAgentSessionManager.explorerView',
         'claudeSessionManager.explorerView',
         issuesViewProvider_1.IssuesViewProvider.scmViewType,
+        'multiAgentSessionManager.scmView',
         'claudeSessionManager.scmView'
     ];
     for (const vt of viewTypes) {
@@ -24,21 +34,29 @@ function activate(context) {
     }
     // Cập nhật context keys khi cài đặt thay đổi
     const updateContexts = () => {
-        const config = vscode.workspace.getConfiguration('claudeSessionManager');
-        const showExplorer = config.get('showInExplorer', true);
-        const showScm = config.get('showInSourceControl', true);
+        const config = vscode.workspace.getConfiguration('multiAgentSessionManager');
+        const legacyConfig = vscode.workspace.getConfiguration('claudeSessionManager');
+        const showExplorer = config.get('showInExplorer', legacyConfig.get('showInExplorer', true));
+        const showScm = config.get('showInSourceControl', legacyConfig.get('showInSourceControl', true));
+        vscode.commands.executeCommand('setContext', 'multiAgentSessionManager.showInExplorer', showExplorer);
+        vscode.commands.executeCommand('setContext', 'multiAgentSessionManager.showInSourceControl', showScm);
         vscode.commands.executeCommand('setContext', 'claudeSessionManager.showInExplorer', showExplorer);
         vscode.commands.executeCommand('setContext', 'claudeSessionManager.showInSourceControl', showScm);
     };
     updateContexts();
-    context.subscriptions.push(vscode.commands.registerCommand('claudeSessionManager.focusView', () => {
-        vscode.commands.executeCommand('claudeSessionManager.issuesView.focus');
-    }));
-    context.subscriptions.push(vscode.commands.registerCommand('claudeSessionManager.openTab', (tab) => {
-        vscode.commands.executeCommand('claudeSessionManager.issuesView.focus');
+    const registerCmd = (name, callback) => {
+        context.subscriptions.push(vscode.commands.registerCommand(`multiAgentSessionManager.${name}`, callback));
+        // Alias cho tương thích ngược
+        context.subscriptions.push(vscode.commands.registerCommand(`claudeSessionManager.${name}`, callback));
+    };
+    registerCmd('focusView', () => {
+        vscode.commands.executeCommand('multiAgentSessionManager.issuesView.focus');
+    });
+    registerCmd('openTab', (tab) => {
+        vscode.commands.executeCommand('multiAgentSessionManager.issuesView.focus');
         provider.switchTab(tab);
-    }));
-    context.subscriptions.push(vscode.commands.registerCommand('claudeSessionManager.statusMenu', async () => {
+    });
+    registerCmd('statusMenu', async () => {
         const items = [
             {
                 label: '$(sync) Đang chạy & Cần review',
@@ -52,12 +70,27 @@ function activate(context) {
             },
             {
                 label: '$(list-unordered) Tất cả lịch sử',
-                description: 'Xem toàn bộ lịch sử các sessions',
+                description: 'Xem toàn bộ lịch sử các sessions (Claude + Gemini + Cursor)',
                 tab: 'all'
             },
             {
-                label: '$(folder-opened) Chọn thư mục lưu trữ Claude (~/.claude/projects)...',
-                description: 'Duyệt và chọn thư mục lưu trữ thay vì gõ đường dẫn',
+                label: '$(sparkle) Lọc: Chỉ xem Gemini / Antigravity',
+                description: 'Lọc các phiên làm việc của Google Antigravity & Gemini',
+                tab: 'gemini'
+            },
+            {
+                label: '$(hubot) Lọc: Chỉ xem Claude Code',
+                description: 'Lọc các phiên làm việc của Claude Code',
+                tab: 'claude'
+            },
+            {
+                label: '$(code) Lọc: Chỉ xem Cursor AI',
+                description: 'Lọc các phiên làm việc của Cursor AI',
+                tab: 'cursor'
+            },
+            {
+                label: '$(folder-opened) Chọn thư mục lưu trữ Agent...',
+                description: 'Duyệt và chọn thư mục lưu trữ Claude (~/.claude/projects)',
                 action: 'browseStorage'
             },
             {
@@ -67,7 +100,7 @@ function activate(context) {
             },
             {
                 label: '$(gear) Cài đặt cấu hình',
-                description: 'Mở thiết lập Claude Session Manager',
+                description: 'Mở thiết lập Multi-Agent Session Manager',
                 action: 'settings'
             }
         ];
@@ -77,30 +110,30 @@ function activate(context) {
         if (!selected)
             return;
         if (selected.action === 'settings') {
-            vscode.commands.executeCommand('workbench.action.openSettings', 'claudeSessionManager');
+            vscode.commands.executeCommand('workbench.action.openSettings', 'multiAgentSessionManager');
         }
         else if (selected.action === 'browseStorage') {
-            vscode.commands.executeCommand('claudeSessionManager.browseStoragePath');
+            vscode.commands.executeCommand('multiAgentSessionManager.browseStoragePath');
         }
         else if (selected.action === 'browseWorkspace') {
-            vscode.commands.executeCommand('claudeSessionManager.browseWorkspaceRoot');
+            vscode.commands.executeCommand('multiAgentSessionManager.browseWorkspaceRoot');
         }
         else if (selected.tab) {
-            vscode.commands.executeCommand('claudeSessionManager.issuesView.focus');
+            vscode.commands.executeCommand('multiAgentSessionManager.issuesView.focus');
             provider.switchTab(selected.tab);
         }
-    }));
-    context.subscriptions.push(vscode.commands.registerCommand('claudeSessionManager.browseStoragePath', async () => {
-        const config = vscode.workspace.getConfiguration('claudeSessionManager');
+    });
+    registerCmd('browseStoragePath', async () => {
+        const config = vscode.workspace.getConfiguration('multiAgentSessionManager');
         const currentPath = config.get('storagePath') || '~/.claude/projects';
-        const resolved = scanner_1.SessionScanner.resolveHomePath(currentPath);
+        const resolved = claude_scanner_1.ClaudeSessionScanner.resolveHomePath(currentPath);
         const defaultUri = fs.existsSync(resolved) ? vscode.Uri.file(resolved) : undefined;
         const selected = await vscode.window.showOpenDialog({
             canSelectFiles: false,
             canSelectFolders: true,
             canSelectMany: false,
             openLabel: 'Chọn thư mục lưu trữ (Select Storage Folder)',
-            title: 'Chọn thư mục chứa lịch sử hội thoại Claude (~/.claude/projects)',
+            title: 'Chọn thư mục chứa lịch sử hội thoại (~/.claude/projects hoặc ~/.gemini/antigravity/brain)',
             defaultUri
         });
         if (selected && selected[0]) {
@@ -109,11 +142,11 @@ function activate(context) {
             provider.setupRealtimeWatchers();
             provider.refresh();
         }
-    }));
-    context.subscriptions.push(vscode.commands.registerCommand('claudeSessionManager.browseWorkspaceRoot', async () => {
-        const config = vscode.workspace.getConfiguration('claudeSessionManager');
+    });
+    registerCmd('browseWorkspaceRoot', async () => {
+        const config = vscode.workspace.getConfiguration('multiAgentSessionManager');
         const currentPath = config.get('workspaceRoot');
-        const resolved = currentPath ? scanner_1.SessionScanner.resolveHomePath(currentPath) : undefined;
+        const resolved = currentPath ? claude_scanner_1.ClaudeSessionScanner.resolveHomePath(currentPath) : undefined;
         const defaultUri = (resolved && fs.existsSync(resolved))
             ? vscode.Uri.file(resolved)
             : (vscode.workspace.workspaceFolders?.[0]?.uri);
@@ -131,41 +164,45 @@ function activate(context) {
             provider.setupRealtimeWatchers();
             provider.refresh();
         }
-    }));
-    context.subscriptions.push(vscode.commands.registerCommand('claudeSessionManager.toggleExplorerView', async () => {
-        const config = vscode.workspace.getConfiguration('claudeSessionManager');
+    });
+    registerCmd('toggleExplorerView', async () => {
+        const config = vscode.workspace.getConfiguration('multiAgentSessionManager');
         const current = config.get('showInExplorer', true);
         const next = !current;
         await config.update('showInExplorer', next, vscode.ConfigurationTarget.Global);
         vscode.window.showInformationMessage(next
-            ? 'Đã bật hiển thị Claude Sessions trong thanh Explorer (File Tree).'
-            : 'Đã tắt hiển thị Claude Sessions khỏi thanh Explorer.');
-    }));
-    context.subscriptions.push(vscode.commands.registerCommand('claudeSessionManager.toggleSourceControlView', async () => {
-        const config = vscode.workspace.getConfiguration('claudeSessionManager');
+            ? 'Đã bật hiển thị AI Sessions trong thanh Explorer (File Tree).'
+            : 'Đã tắt hiển thị AI Sessions khỏi thanh Explorer.');
+    });
+    registerCmd('toggleSourceControlView', async () => {
+        const config = vscode.workspace.getConfiguration('multiAgentSessionManager');
         const current = config.get('showInSourceControl', true);
         const next = !current;
         await config.update('showInSourceControl', next, vscode.ConfigurationTarget.Global);
         vscode.window.showInformationMessage(next
-            ? 'Đã bật hiển thị Claude Sessions trong thanh Source Control (Git).'
-            : 'Đã tắt hiển thị Claude Sessions khỏi thanh Source Control.');
-    }));
-    context.subscriptions.push(vscode.commands.registerCommand('claudeSessionManager.refresh', () => {
+            ? 'Đã bật hiển thị AI Sessions trong thanh Source Control (Git).'
+            : 'Đã tắt hiển thị AI Sessions khỏi thanh Source Control.');
+    });
+    registerCmd('refresh', () => {
         provider.refresh();
-    }));
-    context.subscriptions.push(vscode.commands.registerCommand('claudeSessionManager.openSettings', () => {
-        vscode.commands.executeCommand('workbench.action.openSettings', 'claudeSessionManager');
-    }));
-    context.subscriptions.push(vscode.commands.registerCommand('claudeSessionManager.checkForUpdates', () => {
+    });
+    registerCmd('openSettings', () => {
+        vscode.commands.executeCommand('workbench.action.openSettings', 'multiAgentSessionManager');
+    });
+    registerCmd('checkForUpdates', () => {
         updater_1.ExtensionUpdater.checkForUpdates(context, true);
-    }));
+    });
     // Lắng nghe cấu hình thay đổi để cập nhật tự động
     context.subscriptions.push(vscode.workspace.onDidChangeConfiguration(e => {
-        if (e.affectsConfiguration('claudeSessionManager.showInExplorer') ||
+        if (e.affectsConfiguration('multiAgentSessionManager.showInExplorer') ||
+            e.affectsConfiguration('multiAgentSessionManager.showInSourceControl') ||
+            e.affectsConfiguration('claudeSessionManager.showInExplorer') ||
             e.affectsConfiguration('claudeSessionManager.showInSourceControl')) {
             updateContexts();
         }
-        if (e.affectsConfiguration('claudeSessionManager')) {
+        if (e.affectsConfiguration('multiAgentSessionManager') ||
+            e.affectsConfiguration('claudeSessionManager')) {
+            provider.setupRealtimeWatchers();
             provider.refresh();
         }
     }));

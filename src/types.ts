@@ -1,7 +1,13 @@
 export type SessionStatus = 'need_accept' | 'done' | 'running' | 'failed' | 'question';
 
-export interface ClaudeSession {
+export type AgentId = 'claude' | 'gemini' | 'cursor' | 'devin' | 'windsurf' | string;
+
+export interface Session {
   id: string;
+  agentId: AgentId;
+  agentName?: string;
+  agentIcon?: string;
+  badgeColor?: string;
   issueId?: string;           // Ví dụ: #101, #204
   title: string;             // Tiêu đề
   repo: string;              // Ví dụ: "web-app", "backend-api"
@@ -14,21 +20,26 @@ export interface ClaudeSession {
   updatedAt: number;
   filePath?: string;
 
-  // Metadata mới theo UI
-  source: 'VS Code' | 'Terminal';
-  modelName: string;         // Ví dụ: "Opus 5.5", "Sonnet 3.7"
-  inputTokensFormatted: string;  // Ví dụ: "1.5B", "63.2M"
+  // Metadata theo UI
+  source: 'VS Code' | 'Terminal' | 'Web' | 'IDE';
+  modelName: string;         // Ví dụ: "Gemini 3.8 Flash (High)", "Sonnet 3.7"
+  inputTokensFormatted: string;  // Ví dụ: "1.5B", "63.2M", "12.4k"
   outputTokensFormatted: string; // Ví dụ: "2.4M ra", "308K ra"
   costUSD?: string;          // Ví dụ: "$425.02", "$1.71"
   turnCount: number;         // Ví dụ: 1049, 185
-  shortId: string;           // 8 ký tự cuối hoặc đầu: "3fde811b"
+  shortId: string;           // 8 ký tự: "3fde811b"
   cwd?: string;
   rawInputTokens?: number;
   rawOutputTokens?: number;
   totalTokens?: number;
+  agentSpecificData?: Record<string, any>;
 }
+
+// Backward-compatibility alias
+export type ClaudeSession = Session;
 
 export interface ScanOptions {
   workspaceFolders?: string[];
   defaultRepo?: string;
+  enabledAgents?: AgentId[];
 }
