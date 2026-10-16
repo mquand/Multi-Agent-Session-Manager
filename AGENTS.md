@@ -198,55 +198,94 @@ Date: 2026-10-16
 
 ### ℹ️ Other Detected Tools
 
-#### Codeium
-- Path: `~/.codeium/`
-- Status: Likely cloud-based, may not have local sessions
+### ✅ OpenAI Codex
+**Status**: Implemented (`CodexAdapter`)
 
-#### Copilot
-- Path: `~/.copilot/`
-- Status: Microsoft service, likely cloud-based
+**Paths**:
+- Sessions: `~/.codex/sessions/YYYY/MM/DD/rollout-*.jsonl`
+
+**Format**:
+```json
+{"type":"session_meta","payload":{"session_id":"...","cwd":"...","model":"..."}}
+{"type":"user_message","payload":{"message":"..."}}
+{"type":"assistant_message","payload":{"content":"...","input_tokens":1200,"output_tokens":400}}
+```
+
+**Runtime Tracking**: ✅ Timestamps & activity based
+**Token Tracking**: ✅ Yes (`input_tokens`, `output_tokens`)
+**Git Integration**: ✅ Yes (inferred from `session_meta.cwd`)
+
+---
+
+### ✅ GitHub Copilot Chat
+**Status**: Implemented (`CopilotAdapter`)
+
+**Paths**:
+- Storage DB: `AppData/Roaming/Code/User/globalStorage/github.copilot-chat/session-store.db` (SQLite)
+
+**Format**:
+- `sessions` table: `id`, `cwd`, `repository`, `branch`, `summary`, `created_at`, `updated_at`
+- `turns` table: `user_message`, `assistant_response`, `turn_index`, `timestamp`
+
+**Runtime Tracking**: ✅ Timestamps & activity based
+**Token Tracking**: ✅ Turn based estimation
+**Git Integration**: ✅ Yes (`repository` & `branch` fields directly in DB)
+
+---
+
+### ✅ Windsurf (Cascade)
+**Status**: Implemented (`WindsurfAdapter`)
+
+**Paths**:
+- Cascade Sessions: `~/.codeium/windsurf/cascade/*.pb`
+- Workspace Tracker: `~/.codeium/windsurf/code_tracker/active/`
+
+**Format**:
+- Protocol Buffer (`.pb`) blobs per session
+- Workspace context mapping from `code_tracker/active`
+
+**Runtime Tracking**: ✅ File mtime based
+**Token/Size Tracking**: ✅ Size in KB/MB
+**Git Integration**: ✅ Yes (mapped from active workspace tracker)
+
+---
+
+### ℹ️ Other Detected Tools
 
 #### Grok
 - Path: `~/.grok/`
-- Status: Likely cloud-based
+- Status: Cloud-based
 
 #### Kiro
 - Path: `~/.kiro/`
-- Status: Unknown, needs research
+- Status: Needs research
 
 #### Lyra CLI
 - Path: `~/.lyra-cli/`
-- Status: CLI tool, may have different data structure
+- Status: CLI tool
 
 #### Trae
 - Path: `~/.trae/`
-- Status: Unknown, needs research
+- Status: ByteDance IDE, cloud-based
 
-## Implementation Priority Summary
+## Implementation Summary (All Active Agents Supported!)
 
-### Phase 1 (Immediate)
-1. **Cursor** - Format similar to Claude, high priority
-2. **Gemini/Antigravity** - Different format but doable
-
-### Phase 2 (Future)
-3. **Devin** - Needs more research
-4. **Windsurf** - Needs more research
-
-### Phase 3 (Optional)
-5. Research other tools (Codeium, Copilot, Grok, etc.)
+1. **Claude Code** - Supported with PID & transcript tracking (9 live sessions)
+2. **Gemini / Antigravity** - Supported with DB & transcript parsing (50 live sessions)
+3. **Windsurf (Cascade)** - Supported with Protobuf session & size tracking (38 live sessions)
+4. **GitHub Copilot Chat** - Supported with SQLite `session-store.db` parsing (15 live sessions)
+5. **Cursor AI** - Supported with project transcript parsing (7 live sessions)
+6. **OpenAI Codex** - Supported with rollout `.jsonl` parsing
 
 ## Format Comparison
 
-| Agent | Format Type | Role/Type Field | Status Tracking | Chunked Data |
-|-------|-------------|-----------------|-----------------|--------------|
-| Claude | role-based | `type` (user/assistant) | PID-based | No |
-| Cursor | role-based | `role` (user/assistant) | None | No |
-| Gemini | step-based | `source` (USER_EXPLICIT/MODEL) | Status field | Yes |
+| Agent | Format Type | Role/Type Field | Status Tracking | Storage Location |
+|-------|-------------|-----------------|-----------------|------------------|
+| Claude | role-based | `type` (user/assistant) | PID-based | `~/.claude/projects/` |
+| Cursor | role-based | `role` (user/assistant) | File mtime | `~/.cursor/projects/` |
+| Gemini | step-based | `source` (USER_EXPLICIT/MODEL) | Status field | `~/.gemini/antigravity-ide/brain/` |
+| Codex | event-based | `type` (session_meta, user_message) | Error check / mtime | `~/.codex/sessions/` |
+| Copilot | SQLite DB | relational (`sessions` & `turns`) | Updated timestamp | `globalStorage/github.copilot-chat/` |
+| Windsurf | Protobuf | binary `.pb` files | File mtime & size | `~/.codeium/windsurf/cascade/` |
 
-## Notes
 
-- Cursor is the easiest to implement after Claude (similar format)
-- Gemini requires custom parser due to step-based format
-- Devin and Windsurf need more investigation
-- Cloud-based agents may not have local session data
-- Some agents may only be accessible via API (not local files)

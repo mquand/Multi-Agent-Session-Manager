@@ -1,155 +1,121 @@
 # Multi-Agent Session Manager (VS Code Extension)
 
-**Tiếng Việt** | [English](README.md)
-
 [![Visual Studio Code](https://img.shields.io/badge/VS%20Code-Extension-blue.svg)](https://marketplace.visualstudio.com)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Release](https://img.shields.io/badge/Release-v0.1.0-orange.svg)](https://github.com/mquand/Multi-Agent-Session-Manager/releases)
 
-> Extension trực quan, siêu nhẹ và thời gian thực (real-time) giúp theo dõi, quản lý, phân loại và chuyển đổi nhanh giữa các session làm việc từ **nhiều AI agent khác nhau** (Claude, Cursor, Gemini, Devin, v.v.) trực tiếp ngay trong VS Code. Hỗ trợ toàn diện cả **Issue/Ticket-based workflow (`#xxxx`)** lẫn **Chat tự do hàng ngày**.
-
----
-
-## 💡 Vấn đề giải quyết
-
-Khi sử dụng nhiều AI agent (Claude Code, Cursor, Gemini, Devin, v.v.) cường độ cao:
-- Bạn thường mở nhiều task cùng lúc nhưng không biết task nào **đang chạy**, task nào **đã xong**, task nào **đang dừng chờ duyệt lệnh (`need accept`)**.
-- Lịch sử chat bị trôi, khó tìm lại đúng ngữ cảnh cũ.
-- Khi cần duyệt lệnh terminal hoặc muốn quay lại cuộc trò chuyện cũ, phải gõ lệnh hoặc tìm ID thủ công.
-
-**Multi-Agent Session Manager** quét trực tiếp runtime session và lịch sử của tất cả AI agent trên máy bạn để tạo thành một bảng Dashboard trực quan 1-chạm ngay trên thanh công cụ của VS Code.
+> Extension trực quan, nhẹ và thời gian thực giúp bạn theo dõi, quản lý, phân loại và chuyển đổi nhanh giữa các phiên làm việc (session) từ **nhiều AI coding agent khác nhau** (Claude Code, Google Antigravity / Gemini, Cursor AI, OpenAI Codex, GitHub Copilot Chat và Windsurf Cascade) trực tiếp trên VS Code. Hỗ trợ cả quy trình **Issue/Ticket (`#xxxx`)** lẫn **chat tự do hàng ngày**.
 
 ---
 
-## ✨ Tính năng nổi bật
+## 💡 Vấn đề extension giải quyết
 
-### 1. Hỗ trợ đa AI Agent
-- 🤖 **Claude Code**: Hỗ trợ đầy đủ với theo dõi PID runtime
-- 🎯 **Cursor AI**: Theo dõi session từ transcripts local
-- ✨ **Gemini/Antigravity**: Theo dõi session từ brain logs
-- 🔧 **Devin**: Sắp có
-- 🌊 **Windsurf**: Sắp có
+Khi lập trình viên sử dụng kết hợp nhiều AI Agent cùng lúc:
+- **Claude Code** chạy trên terminal giải quyết các tác vụ agentic lớn.
+- **Google Antigravity / Gemini** thực hiện phân tích logic sâu và thao tác code đa file.
+- **Cursor AI** xử lý composer và trao đổi dự án.
+- **OpenAI Codex** chạy các rollout CLI.
+- **GitHub Copilot Chat** hỗ trợ trực tiếp trong trình soạn thảo.
+- **Windsurf (Cascade)** biên tập luồng code phức tạp.
 
-### 2. Giám sát trạng thái chính xác theo Runtime OS
-- 🔵 **ĐANG CHẠY (`Running`)**: Nhận diện theo Process ID (PID) và trạng thái runtime của AI agent. Khi AI đang thực sự suy nghĩ, sinh mã hoặc chạy script (`running`/`busy`) thì mới hiển thị Đang chạy. Khi AI đã trả lời xong và chuyển sang trạng thái chờ lệnh (`idle`), extension sẽ tự động cập nhật sang **Đã hoàn thành**.
-- 🟡 **CHỜ DUYỆT (`Need Accept`)**: Phát hiện ngay khoảnh khắc AI dừng lại để xin phép bạn thực thi lệnh terminal nguy hiểm hoặc apply file code.
-- 🟢 **ĐÃ HOÀN THÀNH (`Done`)**: Các phiên làm việc đã hoàn tất turn hoặc tiến trình đã kết thúc, hiển thị thời gian tương đối (`vừa xong`, `5 phút trước`...).
+Lịch sử chat và phiên làm việc bị phân tán ở nhiều thư mục và định dạng khác nhau (JSONL, SQLite DB, Protobuf). Bạn không biết task nào đang **chạy (running)**, task nào đang **chờ duyệt lệnh (`need accept`)**, task nào đã xong.
 
-### 3. Tương thích 100% mọi phương thức đăng nhập & Gói cước
-Extension hoạt động bằng cách đọc trực tiếp dữ liệu runtime và nhật ký local tại thư mục của từng agent:
-- **Đăng nhập Web**: Hỗ trợ đầy đủ các loại tài khoản qua trình duyệt
-- **Đăng nhập API**: Hỗ trợ trả phí theo token
-- Bất kể bạn dùng gói nào hay đăng nhập bằng cách nào, extension đều nhận diện trơn tru.
-
-### 4. Tự động tương thích 2 chế độ làm việc
-- **Làm việc tự do (Không dùng Issue)**: Nếu bạn chỉ chat fix bug, trao đổi thông thường, extension tự động lấy câu hỏi đầu tiên làm tiêu đề, tuyệt đối **không hiện rác `#0`**.
-- **Làm việc theo Issue / Ticket**: Tự động nhận diện cú pháp `#<số>` (ví dụ: `#100`, `#7152`, `#5433`) để gắn **Badge Issue màu xanh** nổi bật và làm sạch các đoạn text trùng lặp.
-
-### 5. Thông báo đa điểm tiện lợi (2 vị trí)
-- **Thanh Activity Bar (Sidebar bên trái)**: Icon AI đặc trưng kèm **Badge số màu cam/xanh** nhảy realtime khi có task cần duyệt lệnh.
-- **Thanh Status Bar (Dưới đáy màn hình)**: Hiển thị nhanh số task đang xử lý (ví dụ: `🔔 AI: 1 Chờ duyệt` hoặc `✨ AI: 5 Tasks`), 1 click mở ngay panel.
-
-### 6. 1-Click mở đúng cuộc trò chuyện (Instant Session Jump)
-Click vào bất kỳ card nào trên giao diện ➔ VS Code sẽ kích hoạt AI agent tương ứng và chuyển thẳng đến đúng session đó ngay lập tức.
-
-### 7. Thống kê kỹ thuật rõ ràng & Layout thoáng đãng
-Giao diện card được thiết kế hiện đại, tăng khoảng cách dòng, dễ đọc cho người quản lý nhiều session:
-- 🕒 **Thời gian tương đối**: `vừa xong`, `3 phút trước`, `2 giờ trước`...
-- 🌿 **Git Branch & Repo**: Nhận diện đúng repo và nhánh git đang làm việc.
-- ✨ **Model AI**: `Opus 5.5`, `Sonnet 3.7`, `Haiku 3.5`, `GPT-4`, v.v.
-- 🗄️ **Tokens In / Out**: Ghi rõ ràng `in: 20.6M • out: 68K` (phân biệt rõ ràng token đầu vào và token đầu ra).
-- 💬 **Số lượt tương tác (Turns)**: Đếm chính xác số lần gửi prompt trao đổi trong phiên (1 prompt người dùng + 1 phản hồi = 1 turn).
-- 🆔 **Session ID rút gọn**: 8 ký tự đầu để tra cứu nhanh.
-- 🤖 **Loại Agent**: Hiển thị AI agent nào (Claude, Cursor, Gemini, v.v.)
-
-### 8. Thanh công cụ tiện ích: Nút Làm mới & Cài đặt nhanh
-Ngay cạnh thanh tìm kiếm được tích hợp 2 nút thao tác nhanh:
-- 🔄 **Nút Làm mới (Refresh)**: Quét lại toàn bộ danh sách sessions ngay lập tức với hiệu ứng xoay trực quan.
-- ⚙️ **Nút Cài đặt (Settings)**: 1 click mở ngay trang cấu hình extension trong VS Code Settings.
-
-### 9. Xoá phiên hội thoại trực tiếp & An toàn (Delete Conversation)
-- Di chuột qua bất kỳ card session nào sẽ xuất hiện nút **Thùng rác (Xoá)**.
-- Khi bấm xoá, một hộp thoại xác nhận an toàn (`Modal`) sẽ hiện ra để tránh xoá nhầm.
-- Xác nhận xoá sẽ dọn dẹp triệt để tệp `.jsonl` và thư mục dữ liệu cục bộ tương ứng.
-
-### 10. Thu gọn / Mở rộng nhóm (Accordion Dropdown) & Cuộn mượt mà
-- Các nhóm **CHỜ DUYỆT**, **ĐANG CHẠY**, **ĐÃ HOÀN THÀNH** có thể click vào tiêu đề để thu gọn hoặc mở rộng tùy ý, giúp giao diện luôn gọn gàng khi có nhiều task.
-- Tự động ghi nhớ trạng thái đóng/mở của người dùng qua các phiên làm việc.
-- Hỗ trợ cuộn chuột dọc mượt mà (`Smooth Scrolling`) với thanh cuộn được tối ưu thẩm mỹ.
-
-### 11. Tự động kiểm tra & Cập nhật từ GitHub Releases (Auto Updater)
-- Extension tự động kiểm tra phiên bản mới từ GitHub Releases mỗi khi khởi động VS Code (hoặc bấm nút **Tải xuống / Cập nhật** trên thanh công cụ).
-- Khi có phiên bản mới hơn trên GitHub, VS Code sẽ hiện thông báo kèm nút **[Cập nhật ngay]**.
-- Chỉ với **1 click**, extension sẽ tự tải file `.vsix` từ GitHub và tự động cài đè bản mới nhất vào máy của bạn, hoàn toàn không cần tải hay cài thủ công nữa!
+**Multi-Agent Session Manager** tự động quét dữ liệu cục bộ của tất cả các AI trên máy tính, chuẩn hóa về một giao diện thống nhất và đưa lên Dashboard tiện lợi ngay trên thanh công cụ VS Code.
 
 ---
 
-## 🛠️ Cài đặt
+## ✨ Các AI Agent được hỗ trợ
 
-### Cách 1: Cài đặt từ file đóng gói `.vsix` (Khuyên dùng cho người dùng)
-
-Tương thích hoàn toàn với macOS, Linux, và Windows mà không cần cài Node.js hay build code:
-
-1. Tải bản **`.vsix`** mới nhất từ [GitHub Releases](https://github.com/mquand/Multi-Agent-Session-Manager/releases).
-2. Mở VS Code, nhấn tổ hợp phím:
-   - **macOS**: `Cmd + Shift + P`
-   - **Windows / Linux**: `Ctrl + Shift + P`
-3. Gõ:
-   ```text
-   Extensions: Install from VSIX...
-   ```
-4. Chọn file `.vsix` vừa tải về và bấm **Install**.
-5. Nhấn **Reload Window** (`Developer: Reload Window`).
+| AI Agent | Định dạng lưu trữ | Thư mục mặc định | Tính năng nổi bật |
+| :--- | :--- | :--- | :--- |
+| 🤖 **Claude Code** | JSONL + JSON runtime | `~/.claude/projects/` | Theo dõi runtime PID, phân tích token, bắt sự kiện chờ duyệt lệnh |
+| ✨ **Google Antigravity / Gemini** | JSONL transcript + SQLite DB | `~/.gemini/antigravity/brain/` | Phân tích step-based planner, tự động trích xuất Git Repo & Branch |
+| 🎯 **Cursor AI** | JSONL transcript | `~/.cursor/projects/` | Quét lịch sử transcript theo từng dự án, phát hiện Issue ID |
+| 💻 **OpenAI Codex** | Rollout JSONL | `~/.codex/sessions/` | Quét đệ quy cây thư mục rollout, theo dõi prompt và token |
+| 🐙 **GitHub Copilot Chat** | SQLite Database | `AppData/.../github.copilot-chat/` | Truy vấn trực tiếp `session-store.db`, ánh xạ Repo & Git Branch |
+| 🌊 **Windsurf (Cascade)** | Protocol Buffer (`.pb`) | `~/.codeium/windsurf/cascade/` | Theo dõi dung lượng phiên, hỗ trợ xoá file phình to tránh đơ IDE |
 
 ---
 
-### Cách 2: Cài đặt & Phát triển từ mã nguồn (Dành cho Developers)
+## 🚀 Các tính năng chính
 
+### 1. Dashboard trạng thái thời gian thực
+- 🔵 **RUNNING**: Nhận diện task đang thực thi (qua Process ID của Claude hoặc cập nhật hoạt động gần nhất của các agent khác).
+- 🟡 **NEED ACCEPT**: Bắt chính xác thời điểm AI dừng lại xin phép bạn duyệt lệnh terminal hoặc áp dụng file code.
+- 🟢 **DONE**: Hiển thị các task đã xong với mốc thời gian tương đối (`vừa xong`, `5 phút trước`, `2 giờ trước`).
+
+### 2. Thanh lọc Agent linh hoạt (Filter Pills)
+- Các nút lọc nhanh trên đầu giao diện: **Tất cả AI**, **Claude**, **Gemini**, **Cursor**, **Codex**, **Copilot**, và **Windsurf**.
+- Hiển thị số lượng phiên thời gian thực trên từng nút lọc.
+- Badge màu sắc riêng biệt cho từng AI trên mỗi card session.
+
+### 3. Nhận diện Git Branch & Worktree thông minh
+- Tự động nhận diện Git Repository và nhánh Git tương ứng với từng session.
+- Tương thích hoàn toàn với Git Worktree (tự động phân giải file `.git` trỏ đến `gitdir`).
+- 1 click để lọc session theo dự án hiện tại hoặc theo từng nhánh/worktree cụ thể.
+
+### 4. Tích hợp thanh trạng thái (Status Bar)
+- Dòng trạng thái tổng hợp trực quan ở góc dưới màn hình:  
+  `AI: 9 Claude • 50 Gemini • 7 Cursor • 15 Copilot • 38 Windsurf`
+- Nhấp chuột để mở menu chọn lọc nhanh và chuyển thẳng vào danh sách session của agent mong muốn.
+
+### 5. Đa vị trí hiển thị tiện dụng
+- **Activity Bar (Thanh bên trái)**: Biểu tượng AI riêng biệt với badge số lượng thông báo theo thời gian thực.
+- **Thanh Explorer (Cây thư mục)**: Xem danh sách session ngay trong panel quản lý file.
+- **Source Control (SCM)**: Xem danh sách session đặt cạnh tab Git.
+
+### 6. Xoá phiên hội thoại an toàn & Dọn dẹp ổ đĩa
+- Xoá triệt để các phiên chat cũ hoặc các file `.pb` dung lượng lớn của Windsurf Cascade để giải phóng bộ nhớ và tránh lỗi treo IDE.
+- Hộp thoại xác nhận an toàn tránh xoá nhầm dữ liệu.
+
+### 7. Mở nhanh phiên làm việc (Instant Session Jump)
+- Click vào card session để kích hoạt AI agent tương ứng hoặc mở file transcript trực tiếp trong trình biên soạn VS Code.
+
+### 8. Tự động kiểm tra & Cập nhật từ GitHub Releases
+- Tự động kiểm tra phiên bản mới trên GitHub mỗi khi khởi động VS Code.
+- Cập nhật chỉ với **1 click**: Extension tự tải file `.vsix` mới nhất và cài đặt trực tiếp, không cần thao tác thủ công.
+
+---
+
+## ⚙️ Cài đặt cấu hình
+
+Mở Cài đặt VS Code (`Ctrl+,` hoặc `Cmd+,`) và tìm kiếm `multiAgentSessionManager`:
+
+| Thiết lập | Mặc định | Ý nghĩa |
+| :--- | :--- | :--- |
+| `enabledAgents` | `["claude", "gemini", "cursor", "codex", "copilot", "windsurf"]` | Danh sách các AI agent được bật theo dõi |
+| `autoRefreshInterval` | `10` | Chu kỳ tự động quét lại (giây) |
+| `language` | `"auto"` | Ngôn ngữ hiển thị giao diện (`auto`, `vi`, `en`) |
+| `showInExplorer` | `true` | Hiển thị trong thanh Explorer |
+| `showInSourceControl` | `true` | Hiển thị trong thanh Source Control (Git) |
+| `storagePath` | `~/.claude/projects` | Đường dẫn lưu trữ Claude Code |
+| `geminiStoragePath` | `""` | Đường dẫn lưu trữ Gemini / Antigravity |
+| `cursorStoragePath` | `""` | Đường dẫn lưu trữ Cursor AI |
+| `codexStoragePath` | `""` | Đường dẫn lưu trữ OpenAI Codex |
+| `copilotStoragePath` | `""` | Đường dẫn lưu trữ GitHub Copilot (`session-store.db`) |
+| `windsurfStoragePath` | `""` | Đường dẫn lưu trữ Windsurf Cascade (`.pb`) |
+
+---
+
+## 📦 Hướng dẫn cài đặt
+
+### Cách 1: Cài đặt từ file `.vsix` đóng gói sẵn (Khuyến nghị)
+1. Tải bản `.vsix` mới nhất tại [GitHub Releases](https://github.com/mquand/Multi-Agent-Session-Manager/releases).
+2. Trong VS Code, nhấn tổ hợp phím `Ctrl+Shift+P` (hoặc `Cmd+Shift+P` trên macOS).
+3. Nhập `Extensions: Install from VSIX...` và chọn file `.vsix` vừa tải.
+4. Chọn **Reload Window** để áp dụng.
+
+### Cách 2: Biên dịch từ mã nguồn
 ```bash
-# 1. Clone repository
 git clone https://github.com/mquand/Multi-Agent-Session-Manager.git
-cd Multi-Agent-Session-Manager
-
-# 2. Cài đặt dependencies
+cd "Multi-Agent-Session-Manager"
 npm install
-
-# 3. Biên dịch mã nguồn TypeScript
 npm run compile
-
-# 4. Mở trong VS Code và nhấn phím F5 để chạy Debug
-code .
 ```
-
----
-
-## ⚙️ Cấu hình (Settings)
-
-Extension tự động tìm kiếm theo đường dẫn mặc định của từng AI agent trên máy tính của bạn:
-- **Claude**: `~/.claude/projects` (lịch sử hội thoại `.jsonl`) và `~/.claude/sessions` (runtime PID)
-- **Cursor**: `~/.cursor/projects/*/agent-transcripts` (lịch sử hội thoại `.jsonl`)
-- **Gemini**: `~/.gemini/antigravity/brain/*/logs` (lịch sử hội thoại `.jsonl`)
-
-Nếu bạn thay đổi cấu hình của một AI agent sang thư mục khác:
-1. Mở **Settings** (`Cmd + ,` hoặc `Ctrl + ,`).
-2. Tìm từ khóa `Multi-Agent Session Manager`.
-3. Tùy chỉnh:
-   - `multiAgentSessionManager.storagePath`: Đường dẫn thư mục projects tùy chỉnh.
-   - `multiAgentSessionManager.autoRefreshInterval`: Tần suất quét định kỳ (mặc định: `10` giây).
-   - `multiAgentSessionManager.enabledAgents`: Danh sách agent được kích hoạt (claude, cursor, gemini, devin, windsurf).
-
----
-
-## 🤝 Đóng góp & Phát triển (Contributing)
-
-Mọi đóng góp, báo lỗi (Issues) hoặc tính năng mới (Pull Requests) đều được hoan nghênh:
-1. Fork dự án
-2. Tạo branch tính năng (`git checkout -b feature/tinh-nang-moi`)
-3. Commit thay đổi (`git commit -m 'feat: thêm bộ lọc dự án'`)
-4. Push branch (`git push origin feature/tinh-nang-moi`)
-5. Mở Pull Request trên GitHub
 
 ---
 
 ## 📄 Bản quyền (License)
 
-Dự án được phát hành theo giấy phép [MIT License](LICENSE).
+MIT © [mhquan](https://github.com/mquand)

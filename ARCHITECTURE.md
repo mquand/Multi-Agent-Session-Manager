@@ -1,321 +1,128 @@
 # Multi-Agent Session Manager - Architecture Design
 
-## Overview
+## 1. Overview
 
-This document outlines the architecture for extending the Claude Session Manager to support multiple AI agents (Claude, Cursor, Gemini, Devin, Windsurf, etc.).
+**Multi-Agent Session Manager** is a visual, extensible VS Code extension built with a modular **Adapter Pattern** that allows developers to monitor, organize, inspect, and manage AI coding agent sessions from multiple tools directly inside VS Code.
 
-## Current Architecture (Claude-only)
+---
 
-```
-┌─────────────────────────────────────────┐
-│   Claude Session Manager (Extension)    │
-│   - extension.ts (main entry)           │
-│   - issuesViewProvider.ts (UI)          │
-│   - scanner.ts (Claude-specific)        │
-│   - types.ts (ClaudeSession interface)  │
-│   - updater.ts (GitHub releases)        │
-└─────────────────────────────────────────┘
-                    │
-                    ▼
-         ~/.claude/projects/*.jsonl
-         ~/.claude/sessions/*.json
-```
-
-## Proposed Multi-Agent Architecture
+## 2. System Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│          Multi-Agent Session Manager (Core)                  │
-│  - extension.ts (main entry & orchestration)                │
-│  - issuesViewProvider.ts (UI - unified for all agents)      │
-│  - agent-registry.ts (manages available agents)               │
-│  - types.ts (unified Session interface)                      │
-│  - updater.ts (GitHub releases)                              │
-└─────────────────────────────────────────────────────────────┘
-                    │
-        ┌───────────┼───────────┬───────────┐
-        ▼           ▼           ▼           ▼
-┌──────────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐
-│ Claude       │ │ Cursor   │ │ Gemini   │ │ Other    │
-│ Adapter      │ │ Adapter  │ │ Adapter  │ │ Agent    │
-│              │ │          │ │          │ │ Adapter  │
-│ - scanner.ts │ │ - cursor │ │ - gemini │ │ - ...    │
-│ - types.ts   │ │ scanner │ │ scanner │ │          │
-└──────────────┘ └──────────┘ └──────────┘ └──────────┘
-     │               │              │           │
-     ▼               ▼              ▼           ▼
-~/.claude/      ~/.cursor/     ~/.gemini/   ~/.other/
+┌────────────────────────────────────────────────────────────────────────┐
+│                   VS Code Extension Host                               │
+│                                                                        │
+│   ┌──────────────────────────────────────────────────────────────┐     │
+│   │               IssuesViewProvider (Webview UI)                │     │
+│   │   - Real-time Dashboard (Running / Need Accept / Done)       │     │
+│   │   - Agent Filter Tabs (All / Claude / Gemini / Cursor / ...) │     │
+│   │   - Workspace & Worktree Filtering                           │     │
+│   │   - Multi-Agent Status Bar & Tooltips                        │     │
+│   └──────────────────────────────┬───────────────────────────────┘     │
+│                                  │                                     │
+│   ┌──────────────────────────────▼───────────────────────────────┐     │
+│   │                 AgentRegistry (Orchestrator)                 │     │
+│   │   - Register adapters dynamically                            │     │
+│   │   - Aggregate session scans (Promise.allSettled)             │     │
+│   │   - Aggregate FileSystemWatchers (**/*.{jsonl,db,pb})        │     │
+│   └──────┬──────────┬──────────┬──────────┬──────────┬───────────┘     │
+│          │          │          │          │          │                 │
+└──────────┼──────────┼──────────┼──────────┼──────────┼─────────────────┘
+           ▼          ▼          ▼          ▼          ▼
+     ┌──────────┐┌──────────┐┌──────────┐┌──────────┐┌──────────┐┌──────────┐
+     │  Claude  ││  Gemini  ││  Cursor  ││  Codex   ││ Copilot  ││ Windsurf │
+     │ Adapter  ││ Adapter  ││ Adapter  ││ Adapter  ││ Adapter  ││ Adapter  │
+     └────┬─────┘└────┬─────┘└────┬─────┘└────┬─────┘└────┬─────┘└────┬─────┘
+          │           │           │           │           │           │
+          ▼           ▼           ▼           ▼           ▼           ▼
+      ~/.claude/  ~/.gemini/  ~/.cursor/  ~/.codex/    AppData/   ~/.codeium/
+      projects/    brain/     projects/   sessions/   copilot-db/   cascade/
 ```
 
-## Core Interfaces
+---
 
-### AgentAdapter Interface
+## 3. Core Abstractions
+
+### 3.1 `AgentAdapter` Interface (`src/adapters/base-adapter.ts`)
+
+Every AI agent connects to the extension by implementing `AgentAdapter`:
 
 ```typescript
-interface AgentAdapter {
-  // Agent identification
-  readonly agentId: string;           // 'claude', 'cursor', 'gemini', etc.
-  readonly agentName: string;         // 'Claude Code', 'Cursor AI', etc.
-  readonly icon: string;              // Icon resource path
+export interface AgentAdapter {
+  readonly agentId: string;           // 'claude' | 'gemini' | 'cursor' | 'codex' | 'copilot' | 'windsurf'
+  readonly agentName: string;         // 'Claude Code' | 'Gemini' | 'Cursor AI' | ...
+  readonly icon: string;              // Codicon string: '$(hubot)' | '$(sparkle)' | '$(code)' | ...
+  readonly badgeColor: string;        // Hex color for UI badge
 
-  // Configuration
-  getDefaultStoragePath(): string;    // Default path for this agent
-  isEnabled(): boolean;               // Check if agent is enabled in settings
-
-  // Session scanning
-  scanSessions(options?: ScanOptions): Promise<Session[]>;
-
-  // Session management
-  deleteSession(sessionId: string, filePath: string): boolean;
-
-  // Runtime tracking (optional)
-  getActiveSessionsMap(): Map<string, { status: string; pid: number }>;
+  getDefaultStoragePath(): string;
+  isEnabled(config?: any): boolean;
+  getWatchedDirectories?(customPath?: string): string[];
+  scanSessions(customPath?: string, options?: ScanOptions): Promise<Session[]>;
+  deleteSession?(sessionId: string, filePath: string): boolean;
+  getActiveSessionsMap?(): Map<string, { status: string; pid: number }>;
 }
 ```
 
-### Unified Session Interface
+### 3.2 `AgentRegistry` (`src/agent-registry.ts`)
+
+The central manager that registers and orchestrates adapters:
+- `registerAdapter(adapter)`: Registers an adapter.
+- `getAdapter(agentId)`: Gets an adapter by ID.
+- `getAllAdapters()` / `getAll()`: Returns all registered adapters.
+- `getEnabledAdapters(enabledAgentIds)`: Filters adapters based on user configuration.
+- `scanAll(enabledAgentIds, storagePaths, options)`: Concurrently scans all active adapters and returns a prioritized list of sessions.
+- `getAllWatchedDirectories(enabledAgentIds, storagePaths)`: Collects directories to watch for file system changes.
+
+### 3.3 Unified `Session` Interface (`src/types.ts`)
 
 ```typescript
-interface Session {
-  // Common fields (required for all agents)
+export type SessionStatus = 'need_accept' | 'done' | 'running' | 'failed' | 'question';
+
+export interface Session {
   id: string;
-  agentId: string;                    // 'claude', 'cursor', 'gemini', etc.
+  agentId: AgentId;
+  agentName?: string;
+  badgeColor?: string;
+  issueId?: string;           // e.g., "#101"
   title: string;
   repo: string;
   branch: string;
+  isWorktree?: boolean;
   status: SessionStatus;
-  statusMessage: string;
+  statusMessage: string;     // e.g., "just now", "5 minutes ago"
+  lastUserPrompt?: string;
+  lastAssistantResponse?: string;
   updatedAt: number;
   filePath?: string;
-
-  // Metadata
-  source: 'VS Code' | 'Terminal';
+  source: 'VS Code' | 'Terminal' | 'Web' | 'IDE';
   modelName: string;
   inputTokensFormatted: string;
   outputTokensFormatted: string;
-  costUSD?: string;
   turnCount: number;
   shortId: string;
   cwd?: string;
-
-  // Agent-specific fields (optional)
-  agentSpecificData?: Record<string, any>;
-}
-
-type SessionStatus = 'need_accept' | 'done' | 'running' | 'failed' | 'question';
-```
-
-## Agent-Specific Implementations
-
-### 1. Claude Adapter (existing, to be refactored)
-
-**Path**: `src/adapters/claude/`
-
-**Files**:
-- `claude-adapter.ts` - Implements AgentAdapter
-- `claude-scanner.ts` - Existing scanner.ts logic
-- `claude-types.ts` - Claude-specific types
-
-**Data Source**:
-- `~/.claude/projects/*/session.jsonl`
-- `~/.claude/sessions/*.json` (runtime PID tracking)
-
-**Format**:
-```json
-{"type":"user","message":{"content":[...]}}
-{"type":"assistant","message":{"content":[...]}}
-```
-
-### 2. Cursor Adapter (to be implemented)
-
-**Path**: `src/adapters/cursor/`
-
-**Files**:
-- `cursor-adapter.ts` - Implements AgentAdapter
-- `cursor-scanner.ts` - Cursor-specific scanning logic
-- `cursor-types.ts` - Cursor-specific types
-
-**Data Source**:
-- `~/.cursor/projects/*/agent-transcripts/*.jsonl`
-
-**Format** (similar to Claude):
-```json
-{"role":"user","message":{"content":[{"type":"text","text":"..."}]}}
-{"role":"assistant","message":{"content":[{"type":"tool_use","name":"Read",...}]}}
-```
-
-**Key Differences**:
-- No runtime PID tracking (cloud-based)
-- Different field names (`role` vs `type`)
-- May need different status detection logic
-
-### 3. Gemini/Antigravity Adapter (to be implemented)
-
-**Path**: `src/adapters/gemini/`
-
-**Files**:
-- `gemini-adapter.ts` - Implements AgentAdapter
-- `gemini-scanner.ts` - Gemini-specific scanning logic
-- `gemini-types.ts` - Gemini-specific types
-
-**Data Source**:
-- `~/.gemini/antigravity/brain/*/.system_generated/logs/transcript.jsonl`
-- `~/.gemini/antigravity/brain/*/.system_generated/logs/chunks/transcript/*.jsonl`
-
-**Format** (different from Claude):
-```json
-{"step_index":0,"source":"USER_EXPLICIT","type":"USER_INPUT","status":"DONE","created_at":"...","content":"..."}
-{"step_index":1,"source":"MODEL","type":"PLANNER_RESPONSE","status":"DONE","created_at":"...","tool_calls":[...]}
-```
-
-**Key Differences**:
-- Step-based tracking with `step_index`
-- Different status fields (`DONE`, `RUNNING`, etc.)
-- May need different parsing logic
-
-### 4. Devin Adapter (future)
-
-**Path**: `src/adapters/devin/`
-
-**Data Source**: TBD (need to research `~/.devin/` structure)
-
-### 5. Windsurf Adapter (future)
-
-**Path**: `src/adapters/windsurf/`
-
-**Data Source**: TBD (need to research `~/.windsurf/` structure)
-
-## Configuration Structure
-
-```json
-{
-  "multiAgentSessionManager": {
-    "enabledAgents": ["claude", "cursor", "gemini"],
-    "autoRefreshInterval": 10,
-    "language": "auto",
-    "showInExplorer": true,
-    "showInSourceControl": true,
-    "workspaceRoot": "",
-    "defaultRepo": "",
-    "agentPaths": {
-      "claude": "~/.claude/projects",
-      "cursor": "~/.cursor/projects",
-      "gemini": "~/.gemini/antigravity/brain"
-    }
-  }
 }
 ```
 
-## UI Changes
+---
 
-### 1. Agent Filter/Selector
+## 4. Supported Agents & Storage Formats
 
-Add a dropdown in the toolbar to filter sessions by agent:
-- "All Agents" (default)
-- "Claude"
-- "Cursor"
-- "Gemini"
-- etc.
+| Agent | Storage Format | Storage Path | Key Capabilities |
+| :--- | :--- | :--- | :--- |
+| **Claude Code** | JSONL + JSON runtime | `~/.claude/projects/` | PID runtime tracking, token metrics, prompt history |
+| **Gemini / Antigravity** | JSONL transcript + SQLite DB | `~/.gemini/antigravity/brain/` | Step-based planner responses, Git repo/branch detection |
+| **Cursor AI** | JSONL transcript | `~/.cursor/projects/` | Transcripts per project folder, turn-based history |
+| **OpenAI Codex** | Rollout JSONL | `~/.codex/sessions/` | Event-based rollout parsing, model and token tracking |
+| **GitHub Copilot Chat** | SQLite Database | `AppData/.../github.copilot-chat/` | Structured relational sessions, repo/branch tracking, turn history |
+| **Windsurf (Cascade)** | Protocol Buffer (`.pb`) | `~/.codeium/windsurf/cascade/` | Binary chat history, disk cleanup of bloated sessions |
 
-### 2. Session Card Updates
+---
 
-Add agent badge to each session card:
-- Show agent icon
-- Show agent name (e.g., "Claude", "Cursor", "Gemini")
-- Color-code by agent type
+## 5. UI Architecture
 
-### 3. Status Bar Updates
-
-Update status bar to show multiple agents:
-- `🔔 AI: 3 Claude • 2 Cursor • 1 Gemini`
-- Click to open agent-specific view
-
-## Migration Strategy
-
-### Phase 1: Architecture Setup
-1. Create `src/adapters/` directory structure
-2. Define `AgentAdapter` interface
-3. Create `agent-registry.ts` to manage adapters
-4. Update `types.ts` with unified `Session` interface
-
-### Phase 2: Refactor Claude
-1. Move existing Claude logic to `src/adapters/claude/`
-2. Implement `ClaudeAdapter` class
-3. Update main extension to use adapter pattern
-4. Test to ensure no regression
-
-### Phase 3: Implement Cursor
-1. Create `src/adapters/cursor/` structure
-2. Implement `CursorAdapter` class
-3. Write Cursor-specific scanner
-4. Test with real Cursor data
-5. Add to agent registry
-
-### Phase 4: Implement Gemini
-1. Create `src/adapters/gemini/` structure
-2. Implement `GeminiAdapter` class
-3. Write Gemini-specific scanner
-4. Test with real Gemini data
-5. Add to agent registry
-
-### Phase 5: UI Updates
-1. Add agent filter to UI
-2. Add agent badges to session cards
-3. Update status bar for multi-agent support
-4. Add agent-specific settings
-
-### Phase 6: Additional Agents
-1. Research and implement Devin adapter
-2. Research and implement Windsurf adapter
-3. Add any other requested agents
-
-## File Structure After Refactor
-
-```
-src/
-├── adapters/
-│   ├── claude/
-│   │   ├── claude-adapter.ts
-│   │   ├── claude-scanner.ts
-│   │   └── claude-types.ts
-│   ├── cursor/
-│   │   ├── cursor-adapter.ts
-│   │   ├── cursor-scanner.ts
-│   │   └── cursor-types.ts
-│   ├── gemini/
-│   │   ├── gemini-adapter.ts
-│   │   ├── gemini-scanner.ts
-│   │   └── gemini-types.ts
-│   └── base-adapter.ts              // Base AgentAdapter interface
-├── agent-registry.ts                 // Manages all adapters
-├── extension.ts                       // Main entry (orchestration)
-├── issuesViewProvider.ts              // UI (updated for multi-agent)
-├── types.ts                           // Unified Session interface
-└── updater.ts                         // GitHub releases (unchanged)
-```
-
-## Testing Strategy
-
-### Unit Tests
-- Test each adapter independently
-- Test agent registry functionality
-- Test session parsing for each format
-
-### Integration Tests
-- Test multi-agent scanning
-- Test UI with mixed agent sessions
-- Test filtering by agent
-
-### Manual Testing
-- Test with real Claude data
-- Test with real Cursor data
-- Test with real Gemini data
-- Verify no regression in Claude functionality
-
-## Notes
-
-- Each adapter should be independent and testable
-- Adapters should handle errors gracefully (e.g., missing agent data)
-- UI should degrade gracefully if an agent is not installed
-- Configuration should allow enabling/disabling specific agents
-- Performance should remain acceptable even with multiple agents
+The extension UI is delivered through a high-performance Webview with:
+- **Pill Filters**: Dynamic tabs for all AI agents with real-time session counters.
+- **Accordion Groups**: Categorized by status (Waiting Approval, Running, Today, All).
+- **Responsive Layout**: Designed for Activity Bar (Sidebar), Explorer panel, and Source Control view.
+- **Realtime File Watcher**: Watches `**/*.{jsonl,db,pb}` with debounced updates (300ms) to ensure minimal CPU overhead.

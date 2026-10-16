@@ -3,14 +3,15 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.IssuesViewProvider = void 0;
 const vscode = require("vscode");
 const fs = require("fs");
-const scanner_1 = require("./scanner");
+const agent_registry_1 = require("./agent-registry");
+const claude_scanner_1 = require("./adapters/claude/claude-scanner");
 const updater_1 = require("./updater");
 class IssuesViewProvider {
     _extensionUri;
     _context;
-    static viewType = 'claudeSessionManager.issuesView';
-    static explorerViewType = 'claudeSessionManager.sessionExplorer';
-    static scmViewType = 'claudeSessionManager.sessionScm';
+    static viewType = 'multiAgentSessionManager.issuesView';
+    static explorerViewType = 'multiAgentSessionManager.sessionExplorer';
+    static scmViewType = 'multiAgentSessionManager.sessionScm';
     _views = new Set();
     _watchers = [];
     _refreshTimer;
@@ -22,12 +23,13 @@ class IssuesViewProvider {
         this._extensionUri = _extensionUri;
         this._context = _context;
         this._statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-        this._statusBarItem.command = 'claudeSessionManager.statusMenu';
-        this._statusBarItem.text = '$(sparkle) Claude: Idle';
-        this._statusBarItem.tooltip = 'Claude Session & Issue Manager';
+        this._statusBarItem.command = 'multiAgentSessionManager.statusMenu';
+        this._statusBarItem.text = '$(sparkle) AI: Idle';
+        this._statusBarItem.tooltip = 'Multi-Agent Session Manager';
         this._statusBarItem.show();
         vscode.workspace.onDidChangeConfiguration(e => {
-            if (e.affectsConfiguration('claudeSessionManager')) {
+            if (e.affectsConfiguration('multiAgentSessionManager') ||
+                e.affectsConfiguration('claudeSessionManager')) {
                 this.refresh();
             }
         });
@@ -41,8 +43,9 @@ class IssuesViewProvider {
         }
     }
     getLanguage() {
-        const config = vscode.workspace.getConfiguration('claudeSessionManager');
-        const setting = config.get('language') || 'auto';
+        const config = vscode.workspace.getConfiguration('multiAgentSessionManager');
+        const legacyConfig = vscode.workspace.getConfiguration('claudeSessionManager');
+        const setting = config.get('language') || legacyConfig.get('language') || 'auto';
         if (setting === 'vi' || setting === 'en') {
             return setting;
         }
@@ -60,8 +63,8 @@ class IssuesViewProvider {
     }
     resolveWebviewView(webviewView, _context, _token) {
         this._views.add(webviewView);
-        // Luôn đảm bảo tên hiển thị thống nhất là "Claude Sessions", không bị tiền tố "Explorer: "
-        webviewView.title = 'Claude Sessions';
+        // Luôn đảm bảo tên hiển thị thống nhất là "AI Sessions", không bị tiền tố "Explorer: "
+        webviewView.title = 'AI Sessions';
         webviewView.onDidDispose(() => {
             this._views.delete(webviewView);
         });
@@ -142,7 +145,7 @@ class IssuesViewProvider {
                             action: 'settings'
                         },
                         {
-                            label: lang === 'en' ? '$(folder-opened) Select Claude Storage Directory...' : '$(folder-opened) Chọn thư mục lưu trữ Claude (~/.claude/projects)...',
+                            label: lang === 'en' ? '$(folder-opened) Select Agent Storage Directory...' : '$(folder-opened) Chọn thư mục lưu trữ Agent (~/.claude/projects)...',
                             description: lang === 'en' ? 'Browse folder instead of pasting path' : 'Chọn thư mục trực quan từ máy',
                             action: 'browseStorage'
                         },
@@ -163,13 +166,13 @@ class IssuesViewProvider {
                     if (!pick)
                         break;
                     if (pick.action === 'settings') {
-                        await vscode.commands.executeCommand('workbench.action.openSettings', 'claudeSessionManager');
+                        await vscode.commands.executeCommand('workbench.action.openSettings', 'multiAgentSessionManager');
                     }
                     else if (pick.action === 'browseStorage') {
-                        await vscode.commands.executeCommand('claudeSessionManager.browseStoragePath');
+                        await vscode.commands.executeCommand('multiAgentSessionManager.browseStoragePath');
                     }
                     else if (pick.action === 'browseWorkspace') {
-                        await vscode.commands.executeCommand('claudeSessionManager.browseWorkspaceRoot');
+                        await vscode.commands.executeCommand('multiAgentSessionManager.browseWorkspaceRoot');
                     }
                     else if (pick.action === 'update') {
                         if (this._context)
@@ -185,15 +188,32 @@ class IssuesViewProvider {
                 }
                 case 'openSession': {
                     await this.addReviewedId(data.id);
-                    try {
-                        await vscode.commands.executeCommand('claude-vscode.primaryEditor.open', data.id);
+                    const targetSession = this._lastSessions.find(s => s.id === data.id);
+                    if (targetSession?.agentId && targetSession.agentId !== 'claude') {
+                        if (targetSession.filePath && fs.existsSync(targetSession.filePath)) {
+                            try {
+                                const doc = await vscode.workspace.openTextDocument(vscode.Uri.file(targetSession.filePath));
+                                await vscode.window.showTextDocument(doc, { preview: true });
+                            }
+                            catch (err) {
+                                vscode.window.showErrorMessage(`Không thể mở transcript: ${err}`);
+                            }
+                        }
+                        else {
+                            vscode.window.showInformationMessage(`Phiên ${targetSession.agentName || targetSession.agentId}: ${targetSession.title}`);
+                        }
                     }
-                    catch {
+                    else {
                         try {
-                            await vscode.commands.executeCommand('claude-vscode.editor.open', data.id);
+                            await vscode.commands.executeCommand('claude-vscode.primaryEditor.open', data.id);
                         }
                         catch {
-                            await vscode.commands.executeCommand('claude-vscode.editor.openLast');
+                            try {
+                                await vscode.commands.executeCommand('claude-vscode.editor.open', data.id);
+                            }
+                            catch {
+                                await vscode.commands.executeCommand('claude-vscode.editor.openLast');
+                            }
                         }
                     }
                     break;
@@ -211,7 +231,10 @@ class IssuesViewProvider {
                     const sessionTitle = data.title ? `"${data.title}"` : 'phiên hội thoại này';
                     const choice = await vscode.window.showWarningMessage(`Bạn có chắc chắn muốn xoá ${sessionTitle}? Dữ liệu hội thoại sẽ bị xoá vĩnh viễn khỏi máy.`, { modal: true }, 'Xoá vĩnh viễn');
                     if (choice === 'Xoá vĩnh viễn') {
-                        const success = scanner_1.SessionScanner.deleteSession(data.id, data.filePath);
+                        const targetSession = this._lastSessions.find(s => s.id === data.id);
+                        const agentId = targetSession?.agentId || 'claude';
+                        const adapter = agent_registry_1.AgentRegistry.getAdapter(agentId);
+                        const success = adapter?.deleteSession ? adapter.deleteSession(data.id, data.filePath) : false;
                         if (success) {
                             vscode.window.showInformationMessage('Đã xoá phiên hội thoại thành công.');
                             await this.refresh();
@@ -287,11 +310,31 @@ class IssuesViewProvider {
     setupRealtimeWatchers() {
         this._watchers.forEach(w => w.dispose());
         this._watchers = [];
-        const config = vscode.workspace.getConfiguration('claudeSessionManager');
-        const customPath = config.get('storagePath');
-        const dirs = scanner_1.SessionScanner.getWatchedDirectories(customPath);
+        const config = vscode.workspace.getConfiguration('multiAgentSessionManager');
+        const legacyConfig = vscode.workspace.getConfiguration('claudeSessionManager');
+        const enabledAgents = config.get('enabledAgents') || ['claude', 'gemini', 'cursor', 'codex', 'copilot', 'windsurf'];
+        const storagePaths = {};
+        const claudePath = config.get('storagePath') || legacyConfig.get('storagePath');
+        if (claudePath)
+            storagePaths['claude'] = claudePath;
+        const geminiPath = config.get('geminiStoragePath');
+        if (geminiPath)
+            storagePaths['gemini'] = geminiPath;
+        const cursorPath = config.get('cursorStoragePath');
+        if (cursorPath)
+            storagePaths['cursor'] = cursorPath;
+        const codexPath = config.get('codexStoragePath');
+        if (codexPath)
+            storagePaths['codex'] = codexPath;
+        const copilotPath = config.get('copilotStoragePath');
+        if (copilotPath)
+            storagePaths['copilot'] = copilotPath;
+        const windsurfPath = config.get('windsurfStoragePath');
+        if (windsurfPath)
+            storagePaths['windsurf'] = windsurfPath;
+        const dirs = agent_registry_1.AgentRegistry.getAllWatchedDirectories(enabledAgents, storagePaths);
         for (const dir of dirs) {
-            const pattern = new vscode.RelativePattern(dir, '**/*.jsonl');
+            const pattern = new vscode.RelativePattern(dir, '**/*.{jsonl,db,pb}');
             const watcher = vscode.workspace.createFileSystemWatcher(pattern);
             const triggerDebouncedRefresh = () => {
                 if (this._debounceTimer) {
@@ -309,7 +352,7 @@ class IssuesViewProvider {
         if (this._refreshTimer) {
             clearInterval(this._refreshTimer);
         }
-        const intervalSec = config.get('autoRefreshInterval') || 10;
+        const intervalSec = config.get('autoRefreshInterval') || legacyConfig.get('autoRefreshInterval') || 10;
         this._refreshTimer = setInterval(() => {
             this.refresh();
         }, intervalSec * 1000);
@@ -327,18 +370,29 @@ class IssuesViewProvider {
         }
     }
     async refresh() {
-        const config = vscode.workspace.getConfiguration('claudeSessionManager');
-        const customPath = config.get('storagePath');
-        const workspaceRoot = config.get('workspaceRoot');
-        const defaultRepo = config.get('defaultRepo');
+        const config = vscode.workspace.getConfiguration('multiAgentSessionManager');
+        const legacyConfig = vscode.workspace.getConfiguration('claudeSessionManager');
+        const enabledAgents = config.get('enabledAgents') || ['claude', 'gemini', 'cursor'];
+        const storagePaths = {};
+        const claudePath = config.get('storagePath') || legacyConfig.get('storagePath');
+        if (claudePath)
+            storagePaths['claude'] = claudePath;
+        const geminiPath = config.get('geminiStoragePath');
+        if (geminiPath)
+            storagePaths['gemini'] = geminiPath;
+        const cursorPath = config.get('cursorStoragePath');
+        if (cursorPath)
+            storagePaths['cursor'] = cursorPath;
+        const workspaceRoot = config.get('workspaceRoot') || legacyConfig.get('workspaceRoot');
+        const defaultRepo = config.get('defaultRepo') || legacyConfig.get('defaultRepo');
         const wsFolders = vscode.workspace.workspaceFolders?.map(f => f.uri.fsPath) || [];
         if (workspaceRoot) {
-            const resolved = scanner_1.SessionScanner.resolveHomePath(workspaceRoot);
+            const resolved = claude_scanner_1.ClaudeSessionScanner.resolveHomePath(workspaceRoot);
             if (fs.existsSync(resolved) && !wsFolders.includes(resolved)) {
                 wsFolders.push(resolved);
             }
         }
-        const sessions = await scanner_1.SessionScanner.scanSessions(customPath, {
+        const sessions = await agent_registry_1.AgentRegistry.scanAll(enabledAgents, storagePaths, {
             workspaceFolders: wsFolders,
             defaultRepo: defaultRepo || undefined
         });
@@ -348,6 +402,26 @@ class IssuesViewProvider {
         const needAcceptCount = sessions.filter(s => s.status === 'need_accept').length;
         const runningCount = sessions.filter(s => s.status === 'running').length;
         const needReviewCount = sessions.filter(s => s.status === 'done' && !this.getReviewedIds().includes(s.id) && s.updatedAt >= startOfToday.getTime()).length;
+        const claudeCount = sessions.filter(s => (s.agentId || 'claude') === 'claude').length;
+        const geminiCount = sessions.filter(s => s.agentId === 'gemini').length;
+        const cursorCount = sessions.filter(s => s.agentId === 'cursor').length;
+        const codexCount = sessions.filter(s => s.agentId === 'codex').length;
+        const copilotCount = sessions.filter(s => s.agentId === 'copilot').length;
+        const windsurfCount = sessions.filter(s => s.agentId === 'windsurf').length;
+        const agentParts = [];
+        if (claudeCount > 0)
+            agentParts.push(`${claudeCount} Claude`);
+        if (geminiCount > 0)
+            agentParts.push(`${geminiCount} Gemini`);
+        if (cursorCount > 0)
+            agentParts.push(`${cursorCount} Cursor`);
+        if (codexCount > 0)
+            agentParts.push(`${codexCount} Codex`);
+        if (copilotCount > 0)
+            agentParts.push(`${copilotCount} Copilot`);
+        if (windsurfCount > 0)
+            agentParts.push(`${windsurfCount} Windsurf`);
+        const agentSummaryStr = agentParts.length > 0 ? agentParts.join(' • ') : '0 Sessions';
         const lang = this.getLanguage();
         const currentWorkspace = this.getCurrentWorkspace();
         for (const view of this._views) {
@@ -381,7 +455,8 @@ class IssuesViewProvider {
         md.isTrusted = true;
         md.supportThemeIcons = true;
         if (lang === 'en') {
-            md.appendMarkdown(`### $(sparkle) **Claude Session Manager**\n\n`);
+            md.appendMarkdown(`### $(sparkle) **Multi-Agent Session Manager**\n\n`);
+            md.appendMarkdown(`*Agents: **${agentSummaryStr}***\n\n`);
             if (needAcceptCount > 0) {
                 md.appendMarkdown(`$(bell-dot) **${needAcceptCount} tasks waiting approval**\n\n`);
             }
@@ -396,14 +471,15 @@ class IssuesViewProvider {
             }
             md.appendMarkdown(`---\n\n`);
             md.appendMarkdown(`**Quick switch tab:**\n\n`);
-            md.appendMarkdown(`* [$(sync) **Running & Review** (${activeTotalCount})](command:claudeSessionManager.openTab?%22active%22)\n`);
-            md.appendMarkdown(`* [$(calendar) **Today** (${todayCount})](command:claudeSessionManager.openTab?%22today%22)\n`);
-            md.appendMarkdown(`* [$(list-unordered) **All History** (${sessions.length})](command:claudeSessionManager.openTab?%22all%22)\n\n`);
+            md.appendMarkdown(`* [$(sync) **Running & Review** (${activeTotalCount})](command:multiAgentSessionManager.openTab?%22active%22)\n`);
+            md.appendMarkdown(`* [$(calendar) **Today** (${todayCount})](command:multiAgentSessionManager.openTab?%22today%22)\n`);
+            md.appendMarkdown(`* [$(list-unordered) **All History** (${sessions.length})](command:multiAgentSessionManager.openTab?%22all%22)\n\n`);
             md.appendMarkdown(`---\n\n`);
-            md.appendMarkdown(`[$(gear) Settings](command:claudeSessionManager.openSettings) &nbsp;|&nbsp; [$(refresh) Refresh](command:claudeSessionManager.refresh)`);
+            md.appendMarkdown(`[$(gear) Settings](command:multiAgentSessionManager.openSettings) &nbsp;|&nbsp; [$(refresh) Refresh](command:multiAgentSessionManager.refresh)`);
         }
         else {
-            md.appendMarkdown(`### $(sparkle) **Claude Session Manager**\n\n`);
+            md.appendMarkdown(`### $(sparkle) **Multi-Agent Session Manager**\n\n`);
+            md.appendMarkdown(`*Theo dõi: **${agentSummaryStr}***\n\n`);
             if (needAcceptCount > 0) {
                 md.appendMarkdown(`$(bell-dot) **${needAcceptCount} task đang chờ bạn phê duyệt**\n\n`);
             }
@@ -418,27 +494,27 @@ class IssuesViewProvider {
             }
             md.appendMarkdown(`---\n\n`);
             md.appendMarkdown(`**Chuyển nhanh đến tab:**\n\n`);
-            md.appendMarkdown(`* [$(sync) **Đang chạy & Cần review** (${activeTotalCount})](command:claudeSessionManager.openTab?%22active%22)\n`);
-            md.appendMarkdown(`* [$(calendar) **Hôm nay** (${todayCount})](command:claudeSessionManager.openTab?%22today%22)\n`);
-            md.appendMarkdown(`* [$(list-unordered) **Tất cả lịch sử** (${sessions.length})](command:claudeSessionManager.openTab?%22all%22)\n\n`);
+            md.appendMarkdown(`* [$(sync) **Đang chạy & Cần review** (${activeTotalCount})](command:multiAgentSessionManager.openTab?%22active%22)\n`);
+            md.appendMarkdown(`* [$(calendar) **Hôm nay** (${todayCount})](command:multiAgentSessionManager.openTab?%22today%22)\n`);
+            md.appendMarkdown(`* [$(list-unordered) **Tất cả lịch sử** (${sessions.length})](command:multiAgentSessionManager.openTab?%22all%22)\n\n`);
             md.appendMarkdown(`---\n\n`);
-            md.appendMarkdown(`[$(gear) Cài đặt](command:claudeSessionManager.openSettings) &nbsp;|&nbsp; [$(refresh) Làm mới](command:claudeSessionManager.refresh)`);
+            md.appendMarkdown(`[$(gear) Cài đặt](command:multiAgentSessionManager.openSettings) &nbsp;|&nbsp; [$(refresh) Làm mới](command:multiAgentSessionManager.refresh)`);
         }
         this._statusBarItem.tooltip = md;
         if (needAcceptCount > 0) {
-            this._statusBarItem.text = `$(bell-dot) Claude: ${needAcceptCount} ${lang === 'en' ? 'Waiting' : 'Chờ duyệt'}`;
+            this._statusBarItem.text = `$(bell-dot) AI: ${needAcceptCount} ${lang === 'en' ? 'Waiting' : 'Chờ duyệt'} (${agentSummaryStr})`;
             this._statusBarItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
         }
         else if (runningCount > 0) {
-            this._statusBarItem.text = `$(sync~spin) Claude: ${runningCount} ${lang === 'en' ? 'Running' : 'Đang chạy'}`;
+            this._statusBarItem.text = `$(sync~spin) AI: ${runningCount} ${lang === 'en' ? 'Running' : 'Đang chạy'} (${agentSummaryStr})`;
             this._statusBarItem.backgroundColor = undefined;
         }
         else if (needReviewCount > 0) {
-            this._statusBarItem.text = `$(eye) Claude: ${needReviewCount} ${lang === 'en' ? 'Review' : 'Cần review'}`;
+            this._statusBarItem.text = `$(eye) AI: ${needReviewCount} ${lang === 'en' ? 'Review' : 'Cần review'} (${agentSummaryStr})`;
             this._statusBarItem.backgroundColor = undefined;
         }
         else {
-            this._statusBarItem.text = '$(sparkle) Claude: Idle';
+            this._statusBarItem.text = `$(sparkle) AI: ${agentSummaryStr}`;
             this._statusBarItem.backgroundColor = undefined;
         }
     }
@@ -1231,6 +1307,17 @@ class IssuesViewProvider {
     </div>
   </div>
 
+  <!-- Agent Filter Row (All AI | Claude | Gemini | Cursor | Codex | Copilot | Windsurf) -->
+  <div class="agent-tabs-row" id="agentTabsRow" style="display: flex; gap: 5px; margin-bottom: 8px; overflow-x: auto; padding-bottom: 2px;">
+    <button class="ws-pill active" data-agent-filter="all" id="agentPillAll">Tất cả AI</button>
+    <button class="ws-pill" data-agent-filter="claude" id="agentPillClaude" style="color: #f59e0b;">Claude</button>
+    <button class="ws-pill" data-agent-filter="gemini" id="agentPillGemini" style="color: #60a5fa;">Gemini</button>
+    <button class="ws-pill" data-agent-filter="cursor" id="agentPillCursor" style="color: #34d399;">Cursor</button>
+    <button class="ws-pill" data-agent-filter="codex" id="agentPillCodex" style="color: #10a37f;">Codex</button>
+    <button class="ws-pill" data-agent-filter="copilot" id="agentPillCopilot" style="color: #818cf8;">Copilot</button>
+    <button class="ws-pill" data-agent-filter="windsurf" id="agentPillWindsurf" style="color: #38bdf8;">Windsurf</button>
+  </div>
+
   <!-- 3 Tab Lọc: Tất cả > Hôm nay > Đang chạy -->
   <div class="filter-tabs">
     <button class="filter-btn" data-filter="all" id="tabAllBtn">Tất cả</button>
@@ -1251,6 +1338,7 @@ class IssuesViewProvider {
     const refreshBtn = document.getElementById('refreshBtn');
     const settingsBtn = document.getElementById('settingsBtn');
     const filterBtns = document.querySelectorAll('.filter-btn');
+    const agentFilterBtns = document.querySelectorAll('[data-agent-filter]');
     const workspaceBar = document.getElementById('workspaceBar');
     const wsBtnCurrent = document.getElementById('wsBtnCurrent');
     const wsBtnAll = document.getElementById('wsBtnAll');
@@ -1269,6 +1357,7 @@ class IssuesViewProvider {
     let allSessions = Array.isArray(savedState.sessions) ? savedState.sessions : [];
     let reviewedIds = new Set(Array.isArray(savedState.reviewedIds) ? savedState.reviewedIds : []);
     let currentFilter = savedState.currentFilter || 'today';
+    let currentAgentFilter = savedState.currentAgentFilter || 'all';
     let currentWorkspace = savedState.currentWorkspace || null;
     let currentWorktree = savedState.currentWorktree || null;
     let wsMode = savedState.wsMode || 'current';
@@ -1340,6 +1429,7 @@ class IssuesViewProvider {
         sessions: allSessions,
         reviewedIds: Array.from(reviewedIds),
         currentFilter,
+        currentAgentFilter,
         currentWorkspace,
         currentWorktree,
         wsMode,
@@ -1360,6 +1450,8 @@ class IssuesViewProvider {
       if (tabAll) tabAll.textContent = t('tabAll');
       if (wsAllText) wsAllText.textContent = t('wsAll');
       if (worktreeFilterLabel) worktreeFilterLabel.textContent = (currentLang === 'en' ? 'Worktree:' : 'Worktree:');
+      const pAll = document.getElementById('agentPillAll');
+      if (pAll) pAll.textContent = (currentLang === 'en' ? 'All AI' : 'Tất cả AI');
     }
 
     // 3. Khôi phục tab lọc đang chọn
@@ -1369,6 +1461,22 @@ class IssuesViewProvider {
       } else {
         btn.classList.remove('active');
       }
+    });
+
+    agentFilterBtns.forEach(btn => {
+      if (btn.getAttribute('data-agent-filter') === currentAgentFilter) {
+        btn.classList.add('active');
+      } else {
+        btn.classList.remove('active');
+      }
+      btn.addEventListener('click', () => {
+        const ag = btn.getAttribute('data-agent-filter');
+        currentAgentFilter = ag;
+        agentFilterBtns.forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        saveState();
+        renderSessions();
+      });
     });
 
     // 4. Các hàm tiện ích
@@ -1459,6 +1567,17 @@ class IssuesViewProvider {
           '<span class="status-dot ' + dotClass + '"></span>' +
           '<div style="flex: 1; min-width: 0;">' +
             '<div class="meta-row">' +
+              (s.agentId === 'gemini'
+                ? '<span class="agent-badge" style="background: rgba(66, 133, 244, 0.18); color: #60a5fa; border: 1px solid rgba(66, 133, 244, 0.35); padding: 1.5px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; margin-right: 2px;">Gemini</span>'
+                : (s.agentId === 'cursor'
+                  ? '<span class="agent-badge" style="background: rgba(16, 185, 129, 0.18); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.35); padding: 1.5px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; margin-right: 2px;">Cursor</span>'
+                  : (s.agentId === 'codex'
+                    ? '<span class="agent-badge" style="background: rgba(16, 163, 127, 0.18); color: #10a37f; border: 1px solid rgba(16, 163, 127, 0.35); padding: 1.5px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; margin-right: 2px;">Codex</span>'
+                    : (s.agentId === 'copilot'
+                      ? '<span class="agent-badge" style="background: rgba(99, 102, 241, 0.18); color: #818cf8; border: 1px solid rgba(99, 102, 241, 0.35); padding: 1.5px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; margin-right: 2px;">Copilot</span>'
+                      : (s.agentId === 'windsurf'
+                        ? '<span class="agent-badge" style="background: rgba(2, 132, 199, 0.18); color: #38bdf8; border: 1px solid rgba(2, 132, 199, 0.35); padding: 1.5px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; margin-right: 2px;">Windsurf</span>'
+                        : '<span class="agent-badge" style="background: rgba(245, 158, 11, 0.18); color: #fbbf24; border: 1px solid rgba(245, 158, 11, 0.35); padding: 1.5px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; text-transform: uppercase; margin-right: 2px;">Claude</span>'))))) +
               '<span class="repo-badge">' + escapeHtml(s.repo) + '</span>' +
               (s.issueId ? '<span class="issue-badge">' + escapeHtml(s.issueId) + '</span>' : '') +
               reviewBadge +
@@ -1592,7 +1711,35 @@ class IssuesViewProvider {
             : t('tabActive');
         }
 
+        // Cập nhật số lượng trên các tab Agent
+        const countAll = enrichedSessions.length;
+        const countClaude = enrichedSessions.filter(s => (s.agentId || 'claude') === 'claude').length;
+        const countGemini = enrichedSessions.filter(s => s.agentId === 'gemini').length;
+        const countCursor = enrichedSessions.filter(s => s.agentId === 'cursor').length;
+        const countCodex = enrichedSessions.filter(s => s.agentId === 'codex').length;
+        const countCopilot = enrichedSessions.filter(s => s.agentId === 'copilot').length;
+        const countWindsurf = enrichedSessions.filter(s => s.agentId === 'windsurf').length;
+        const pillAll = document.getElementById('agentPillAll');
+        const pillClaude = document.getElementById('agentPillClaude');
+        const pillGemini = document.getElementById('agentPillGemini');
+        const pillCursor = document.getElementById('agentPillCursor');
+        const pillCodex = document.getElementById('agentPillCodex');
+        const pillCopilot = document.getElementById('agentPillCopilot');
+        const pillWindsurf = document.getElementById('agentPillWindsurf');
+        if (pillAll) pillAll.textContent = (currentLang === 'en' ? 'All AI' : 'Tất cả AI') + ' (' + countAll + ')';
+        if (pillClaude) pillClaude.textContent = 'Claude (' + countClaude + ')';
+        if (pillGemini) pillGemini.textContent = 'Gemini (' + countGemini + ')';
+        if (pillCursor) pillCursor.textContent = 'Cursor (' + countCursor + ')';
+        if (pillCodex) pillCodex.textContent = 'Codex (' + countCodex + ')';
+        if (pillCopilot) pillCopilot.textContent = 'Copilot (' + countCopilot + ')';
+        if (pillWindsurf) pillWindsurf.textContent = 'Windsurf (' + countWindsurf + ')';
+
         let filtered = enrichedSessions;
+
+        // Lọc theo AI Agent (all / claude / gemini)
+        if (currentAgentFilter && currentAgentFilter !== 'all') {
+          filtered = filtered.filter(s => (s.agentId || 'claude') === currentAgentFilter);
+        }
 
         // Lọc theo Workspace (nếu người dùng chọn tab Dự án này và đang mở 1 workspace)
         if (wsMode === 'current' && currentWorkspace && currentWorkspace.name) {
@@ -1860,14 +2007,22 @@ class IssuesViewProvider {
     window.addEventListener('message', event => {
       const message = event.data;
       if (message.type === 'switchTab' && message.tab) {
-        currentFilter = message.tab;
-        filterBtns.forEach(btn => {
-          if (btn.getAttribute('data-filter') === currentFilter) {
-            btn.classList.add('active');
-          } else {
-            btn.classList.remove('active');
-          }
-        });
+        if (message.tab === 'claude' || message.tab === 'gemini' || message.tab === 'cursor' || message.tab === 'codex' || message.tab === 'copilot' || message.tab === 'windsurf') {
+          currentAgentFilter = message.tab;
+          agentFilterBtns.forEach(b => {
+            if (b.getAttribute('data-agent-filter') === currentAgentFilter) b.classList.add('active');
+            else b.classList.remove('active');
+          });
+        } else {
+          currentFilter = message.tab;
+          filterBtns.forEach(btn => {
+            if (btn.getAttribute('data-filter') === currentFilter) {
+              btn.classList.add('active');
+            } else {
+              btn.classList.remove('active');
+            }
+          });
+        }
         saveState();
         renderSessions();
         return;

@@ -2,7 +2,7 @@
   "name": "multi-agent-session-manager",
   "displayName": "Multi-Agent Session Manager",
   "description": "Track and manage sessions from multiple AI agents (Claude, Cursor, Gemini, Devin, etc.) directly in VS Code / Theo dõi và quản lý phiên làm việc từ nhiều AI agent (Claude, Cursor, Gemini, Devin, ...) trực tiếp trên VS Code",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "publisher": "mhquan",
   "author": "mhquan",
   "license": "MIT",
@@ -144,12 +144,37 @@
         },
         "multiAgentSessionManager.enabledAgents": {
           "type": "array",
-          "default": ["claude"],
+          "default": ["claude", "gemini", "cursor", "codex", "copilot", "windsurf"],
           "items": {
             "type": "string",
-            "enum": ["claude", "cursor", "gemini", "devin", "windsurf"]
+            "enum": ["claude", "cursor", "gemini", "codex", "copilot", "windsurf", "devin"]
           },
           "description": "List of enabled AI agents to track / Danh sách AI agent được theo dõi"
+        },
+        "multiAgentSessionManager.geminiStoragePath": {
+          "type": "string",
+          "default": "",
+          "description": "Custom path to Gemini / Antigravity brain storage directory. Leave empty to auto-detect. / Đường dẫn tuỳ chỉnh lưu trữ session của Gemini."
+        },
+        "multiAgentSessionManager.cursorStoragePath": {
+          "type": "string",
+          "default": "",
+          "description": "Custom path to Cursor AI projects directory (~/.cursor/projects). Leave empty to auto-detect. / Đường dẫn tuỳ chỉnh lưu trữ session của Cursor AI."
+        },
+        "multiAgentSessionManager.codexStoragePath": {
+          "type": "string",
+          "default": "",
+          "description": "Custom path to OpenAI Codex sessions directory (~/.codex/sessions). Leave empty to auto-detect. / Đường dẫn tuỳ chỉnh lưu trữ session của OpenAI Codex."
+        },
+        "multiAgentSessionManager.copilotStoragePath": {
+          "type": "string",
+          "default": "",
+          "description": "Custom path to GitHub Copilot Chat database (session-store.db). Leave empty to auto-detect. / Đường dẫn tuỳ chỉnh file session-store.db của GitHub Copilot."
+        },
+        "multiAgentSessionManager.windsurfStoragePath": {
+          "type": "string",
+          "default": "",
+          "description": "Custom path to Windsurf Cascade directory (~/.codeium/windsurf/cascade). Leave empty to auto-detect. / Đường dẫn tuỳ chỉnh lưu trữ session Cascade của Windsurf."
         }
       }
     }

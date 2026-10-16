@@ -3,151 +3,119 @@
 [![Visual Studio Code](https://img.shields.io/badge/VS%20Code-Extension-blue.svg)](https://marketplace.visualstudio.com)
 [![Platform](https://img.shields.io/badge/Platform-macOS%20%7C%20Linux%20%7C%20Windows-brightgreen.svg)]()
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Release](https://img.shields.io/badge/Release-v0.1.0-orange.svg)](https://github.com/mquand/Multi-Agent-Session-Manager/releases)
 
-> A visual, lightweight, and real-time extension that helps you track, manage, categorize, and quickly switch between working sessions from **multiple AI agents** (Claude, Cursor, Gemini, Devin, etc.) directly in VS Code. Supports both **Issue/Ticket-based workflow (`#xxxx`)** and **daily free chat**.
-
----
-
-## 💡 Problem Solved
-
-When using multiple AI agents (Claude Code, Cursor, Gemini, Devin, etc.) intensively:
-- You often open multiple tasks at once but don't know which task is **running**, which is **done**, which is **waiting for command approval (`need accept`)**.
-- Chat history gets lost, hard to find the right old context.
-- When you need to review terminal commands or return to an old conversation, you have to type commands or find IDs manually.
-
-**Multi-Agent Session Manager** scans the runtime sessions and history of all your AI agents on your machine to create a one-click Dashboard right on the VS Code toolbar.
+> A visual, high-performance, real-time extension to track, monitor, inspect, and switch between sessions across **multiple AI coding agents** (Claude Code, Google Antigravity / Gemini, Cursor AI, OpenAI Codex, GitHub Copilot Chat, and Windsurf Cascade) directly inside VS Code.
 
 ---
 
-## ✨ Key Features
+## 💡 Why Multi-Agent Session Manager?
 
-### 1. Multi-Agent Support
-- 🤖 **Claude Code**: Full support with runtime PID tracking
-- 🎯 **Cursor AI**: Session tracking from local transcripts
-- ✨ **Gemini/Antigravity**: Session tracking from brain logs
-- 🔧 **Devin**: Coming soon
-- 🌊 **Windsurf**: Coming soon
+Modern developers frequently leverage multiple AI coding assistants simultaneously:
+- **Claude Code** for terminal-based agentic refactoring.
+- **Google Antigravity / Gemini** for deep reasoning tasks and workspace changes.
+- **Cursor AI** for project-wide chat and composer sessions.
+- **OpenAI Codex** for rollout CLI workflows.
+- **GitHub Copilot Chat** for in-editor chat and patch suggestions.
+- **Windsurf (Cascade)** for multi-file flow editing.
 
-### 2. Accurate Status Monitoring by Runtime OS
-- 🔵 **RUNNING**: Detected by Process ID (PID) and runtime status of the AI agent. When the AI is actually thinking, generating code, or running scripts (`running`/`busy`), it shows as Running. When the AI has finished and switched to waiting for command (`idle`), the extension automatically updates to **Done**.
-- 🟡 **NEED ACCEPT**: Detects the moment the AI stops to ask you to execute dangerous terminal commands or apply code files.
-- 🟢 **DONE**: Sessions that have completed turns or processes have finished, showing relative time (`just now`, `5 minutes ago`...).
+When running multiple tasks, chat histories become fragmented across different directories, proprietary databases, and formats. You lose track of which agent is **running**, which is **waiting for approval (`need accept`)**, and which has completed.
 
-### 3. 100% Compatible with All Login Methods & Plans
-The extension works by reading runtime data and local logs directly from each agent's directory:
-- **Web Login**: Full support for various account types
-- **API Login**: Token-based payment support
-- Regardless of which plan or login method you use, the extension detects smoothly.
-
-### 4. Automatic Adaptation to 2 Working Modes
-- **Free Work (No Issue)**: If you just chat to fix bugs, discuss normally, the extension automatically takes the first question as the title, absolutely **no spam `#0`**.
-- **Issue/Ticket Work**: Automatically detects `#<number>` syntax (e.g., `#100`, `#7152`, `#5433`) to attach a **green Issue Badge** and clean up duplicate text.
-
-### 5. Multi-point Convenient Notifications (2 Locations)
-- **Activity Bar (Left Sidebar)**: Unique AI icon with **orange/green number badge** jumping in real-time when there are tasks needing approval.
-- **Status Bar (Bottom of screen)**: Quick display of number of tasks being processed (e.g., `🔔 AI: 1 Need Accept` or `✨ AI: 5 Tasks`), 1 click to open panel.
-
-### 6. 1-Click Open Right Conversation (Instant Session Jump)
-Click on any card on the interface ➔ VS Code will activate the corresponding AI agent and switch directly to that session immediately.
-
-### 7. Clear Technical Statistics & Spacious Layout
-The card interface is designed modernly, with increased line spacing, easy to read for people managing many sessions:
-- 🕒 **Relative Time**: `just now`, `3 minutes ago`, `2 hours ago`...
-- 🌿 **Git Branch & Repo**: Detects the correct repo and git branch you're working on.
-- ✨ **AI Model**: `Opus 5.5`, `Sonnet 3.7`, `Haiku 3.5`, `GPT-4`, etc.
-- 🗄️ **Tokens In / Out**: Clearly shows `in: 20.6M • out: 68K` (clearly distinguishing input tokens and output tokens).
-- 💬 **Number of Interactions (Turns)**: Accurately counts the number of prompt exchanges in the session (1 user prompt + 1 response = 1 turn).
-- 🆔 **Short Session ID**: First 8 characters for quick lookup.
-- 🤖 **Agent Type**: Shows which AI agent (Claude, Cursor, Gemini, etc.)
-
-### 8. Utility Toolbar: Refresh & Quick Settings
-Next to the search bar, 2 quick action buttons are integrated:
-- 🔄 **Refresh Button**: Rescans the entire session list immediately with a visual rotation effect.
-- ⚙️ **Settings Button**: 1 click to open the extension configuration page in VS Code Settings.
-
-### 9. Direct & Safe Conversation Deletion (Delete Conversation)
-- Hover over any session card to reveal the **Trash (Delete)** button.
-- When clicking delete, a safe confirmation dialog (`Modal`) appears to avoid accidental deletion.
-- Confirming deletion will thoroughly clean up the `.jsonl` file and corresponding local data directory.
-
-### 10. Collapsible/Expandable Groups (Accordion Dropdown) & Smooth Scrolling
-- Groups **NEED ACCEPT**, **RUNNING**, **DONE** can be clicked on the title to collapse or expand as desired, keeping the interface always neat when there are many tasks.
-- Automatically remembers the user's close/open state across sessions.
-- Supports smooth vertical scrolling (`Smooth Scrolling`) with an aesthetically optimized scrollbar.
-
-### 11. Auto Check & Update from GitHub Releases (Auto Updater)
-- The extension automatically checks for new versions from GitHub Releases every time VS Code starts (or when clicking the **Download/Update** button on the toolbar).
-- When a newer version is available on GitHub, VS Code will show a notification with an **[Update Now]** button.
-- With just **1 click**, the extension will automatically download the `.vsix` file from GitHub and automatically install the latest version on your machine, no need to download or install manually anymore!
+**Multi-Agent Session Manager** scans your machine's local agent storage directories, normalizes their metadata into a unified interface, and presents a responsive dashboard right in your VS Code sidebar, explorer, and status bar.
 
 ---
 
-## 🛠️ Installation
+## ✨ Supported AI Agents
 
-### Method 1: Install from packaged `.vsix` file (Recommended for users)
-
-Fully compatible with macOS, Linux, and Windows without needing Node.js or build code:
-
-1. Download the latest **`.vsix`** from [GitHub Releases](https://github.com/mquand/Multi-Agent-Session-Manager/releases).
-2. Open VS Code, press the key combination:
-   - **macOS**: `Cmd + Shift + P`
-   - **Windows / Linux**: `Ctrl + Shift + P`
-3. Type:
-   ```text
-   Extensions: Install from VSIX...
-   ```
-4. Select the `.vsix` file you just downloaded and click **Install**.
-5. Click **Reload Window** (`Developer: Reload Window`).
+| Agent | Storage Format | Default Path | Features |
+| :--- | :--- | :--- | :--- |
+| 🤖 **Claude Code** | JSONL + JSON runtime | `~/.claude/projects/` | PID runtime tracking, token telemetry, command approval detection |
+| ✨ **Google Antigravity / Gemini** | JSONL transcript + SQLite DB | `~/.gemini/antigravity/brain/` | Step-based planner tracking, repo & branch detection |
+| 🎯 **Cursor AI** | JSONL transcript | `~/.cursor/projects/` | Project transcripts, turn history, issue tag detection |
+| 💻 **OpenAI Codex** | Rollout JSONL | `~/.codex/sessions/` | Recursive rollout discovery, prompt and token tracking |
+| 🐙 **GitHub Copilot Chat** | SQLite Database | `AppData/.../github.copilot-chat/` | Native `session-store.db` relational queries, branch & repo mapping |
+| 🌊 **Windsurf (Cascade)** | Protocol Buffer (`.pb`) | `~/.codeium/windsurf/cascade/` | Session size tracking, safe deletion of bloated files |
 
 ---
 
-### Method 2: Install & Develop from source code (For Developers)
+## 🚀 Key Features
 
+### 1. Unified Real-Time Dashboard
+- 🔵 **RUNNING**: Identifies actively executing tasks (via PID on Claude, or recent activity on other agents).
+- 🟡 **NEED ACCEPT**: Flags tasks pausing for user confirmation on terminal commands or file changes.
+- 🟢 **DONE**: Displays finished sessions with relative timestamps (`just now`, `5m ago`, `2h ago`).
+
+### 2. Multi-Agent Filter Bar
+- Quick-filter pills at the top of the view: **All AI**, **Claude**, **Gemini**, **Cursor**, **Codex**, **Copilot**, and **Windsurf**.
+- Live badges with real-time session counters for each agent.
+- Color-coded badges for immediate visual recognition on every session card.
+
+### 3. Git Branch & Worktree Intelligence
+- Automatically detects the Git repository and branch for each session.
+- Seamlessly resolves Git Worktrees (`.git` file referencing `gitdir`).
+- Filter sessions by current workspace or by Git branch/worktree with a single click.
+
+### 4. Status Bar Integration
+- Live summary on the bottom status bar:  
+  `AI: 9 Claude • 50 Gemini • 7 Cursor • 15 Copilot • 38 Windsurf`
+- Click to open the quick-filter menu and jump directly into any agent's sessions.
+
+### 5. Multi-Container Placement
+- **Activity Bar**: Dedicated AI Sessions icon on the primary sidebar.
+- **Explorer View**: Accessible right inside your File Tree view.
+- **Source Control (SCM) View**: Conveniently located alongside your Git changes.
+
+### 6. Safe Session Deletion & Disk Cleanup
+- Delete old or bloated conversation files directly from the UI.
+- Particularly helpful for **Windsurf Cascade**, where bloated `.pb` files can cause IDE startup freezes.
+
+### 7. Instant Session Jump & Transcript Viewing
+- Click on any session card to activate the agent or open the transcript file directly in VS Code.
+
+### 8. Auto-Updater via GitHub Releases
+- Automatically checks for new releases on GitHub.
+- 1-click update: downloads and installs the latest `.vsix` package seamlessly.
+
+---
+
+## ⚙️ Configuration
+
+Open your VS Code Settings (`Ctrl+,` or `Cmd+,`) and search for `multiAgentSessionManager`:
+
+| Setting | Default | Description |
+| :--- | :--- | :--- |
+| `enabledAgents` | `["claude", "gemini", "cursor", "codex", "copilot", "windsurf"]` | List of AI agents to scan and display |
+| `autoRefreshInterval` | `10` | Auto-refresh interval in seconds |
+| `language` | `"auto"` | Interface language (`auto`, `vi`, `en`) |
+| `showInExplorer` | `true` | Display AI Sessions in the Explorer view |
+| `showInSourceControl` | `true` | Display AI Sessions in the Source Control view |
+| `storagePath` | `~/.claude/projects` | Custom path for Claude Code sessions |
+| `geminiStoragePath` | `""` | Custom path for Gemini/Antigravity storage |
+| `cursorStoragePath` | `""` | Custom path for Cursor AI projects |
+| `codexStoragePath` | `""` | Custom path for OpenAI Codex sessions |
+| `copilotStoragePath` | `""` | Custom path for GitHub Copilot `session-store.db` |
+| `windsurfStoragePath` | `""` | Custom path for Windsurf Cascade `.pb` files |
+
+---
+
+## 📦 Installation
+
+### From VSIX Package (Recommended)
+1. Download the latest `.vsix` from [GitHub Releases](https://github.com/mquand/Multi-Agent-Session-Manager/releases).
+2. In VS Code, press `Ctrl+Shift+P` (or `Cmd+Shift+P` on macOS).
+3. Type `Extensions: Install from VSIX...` and select the downloaded file.
+4. Reload VS Code.
+
+### From Source
 ```bash
-# 1. Clone repository
 git clone https://github.com/mquand/Multi-Agent-Session-Manager.git
-cd Multi-Agent-Session-Manager
-
-# 2. Install dependencies
+cd "Multi-Agent-Session-Manager"
 npm install
-
-# 3. Compile TypeScript source code
 npm run compile
-
-# 4. Open in VS Code and press F5 to run Debug
-code .
 ```
 
 ---
 
-## ⚙️ Configuration (Settings)
+## 📄 License
 
-The extension automatically searches by default paths of each AI agent on your computer:
-- **Claude**: `~/.claude/projects` (conversation history `.jsonl`) and `~/.claude/sessions` (runtime PID)
-- **Cursor**: `~/.cursor/projects/*/agent-transcripts` (conversation history `.jsonl`)
-- **Gemini**: `~/.gemini/antigravity/brain/*/logs` (conversation history `.jsonl`)
-
-If you change the configuration of an AI agent to another folder:
-1. Open **Settings** (`Cmd + ,` or `Ctrl + ,`).
-2. Search for the keyword `Multi-Agent Session Manager`.
-3. Adjust:
-   - `multiAgentSessionManager.storagePath`: Custom projects storage path.
-   - `multiAgentSessionManager.autoRefreshInterval`: Periodic scan frequency (default: `10` seconds).
-   - `multiAgentSessionManager.enabledAgents`: List of enabled agents (claude, cursor, gemini, devin, windsurf).
-
----
-
-## 🤝 Contributing & Development (Contributing)
-
-All contributions, bug reports (Issues) or new features (Pull Requests) are welcome:
-1. Fork the project
-2. Create a feature branch (`git checkout -b feature/new-feature`)
-3. Commit changes (`git commit -m 'feat: add project filter'`)
-4. Push branch (`git push origin feature/new-feature`)
-5. Open Pull Request on GitHub
-
----
-
-## 📄 License (License)
-
-The project is released under the [MIT License](LICENSE).
+MIT © [mhquan](https://github.com/mquand)
